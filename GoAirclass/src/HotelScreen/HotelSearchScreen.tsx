@@ -14,20 +14,26 @@ import {
   Modal,
   BackHandler,
   Image,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import BottomTabNavigation, { BottomTabType } from '../components/BottomTabNavigation';
+import { hotelService } from '../api';
+import GoaImg from '../assets/Goa.png';
+import MumbaiImg from '../assets/mumbai.png';
+import DelhiImg from '../assets/delhi.png';
+import DubaiImg from '../assets/Dubai.png';
+import BangkokImg from '../assets/Bangkok.png';
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const FONT_FAMILY = Platform.select({
-  ios: 'Helvetica Neue',
-  android: 'sans-serif',
-  default: 'sans-serif',
-});
+const FONT_FAMILY = 'Montserrat';
 
 interface HotelSearchScreenProps {
-  onSearchHotels?: () => void;
+  onSearchHotels?: (params?: any) => void;
   onBack?: () => void;
   onSelectFlights?: () => void;
+  onSelectProfile?: () => void;
 }
 
 type HotelCategory = 'Flights' | 'Hotels';
@@ -38,14 +44,15 @@ interface PopularCity {
   country: string;
   icon: string;
   imageBg: string;
+  image: any;
 }
 
 const POPULAR_CITIES: PopularCity[] = [
-  { id: '1', name: 'Goa', country: 'India', icon: '🏖', imageBg: '#0ea5e9' },
-  { id: '2', name: 'Mumbai', country: 'India', icon: '🏙', imageBg: '#1e293b' },
-  { id: '3', name: 'Delhi NCR', country: 'India', icon: '🏛', imageBg: '#b45309' },
-  { id: '4', name: 'Dubai', country: 'UAE', icon: '🌆', imageBg: '#6366f1' },
-  { id: '5', name: 'Bangkok', country: 'Thailand', icon: '🌴', imageBg: '#059669' },
+  { id: '1', name: 'Goa', country: 'India', icon: '🏖', imageBg: '#0ea5e9', image: GoaImg },
+  { id: '2', name: 'Mumbai', country: 'India', icon: '🏙', imageBg: '#1e293b', image: MumbaiImg },
+  { id: '3', name: 'Delhi NCR', country: 'India', icon: '🏛', imageBg: '#b45309', image: DelhiImg },
+  { id: '4', name: 'Dubai', country: 'UAE', icon: '🌆', imageBg: '#6366f1', image: DubaiImg },
+  { id: '5', name: 'Bangkok', country: 'Thailand', icon: '🌴', imageBg: '#059669', image: BangkokImg },
 ];
 
 interface FeaturedHotel {
@@ -96,22 +103,100 @@ const FEATURED_HOTELS: FeaturedHotel[] = [
   },
 ];
 
-export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlights }: HotelSearchScreenProps) {
+const getFormattedDate = (offset = 0) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return {
+    dateStr: `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`,
+    dayStr: dayNames[d.getDay()],
+  };
+};
+
+const generateNext30Days = () => {
+  const days = [];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  for (let i = 0; i < 30; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const dateStr = `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+    const dayStr = dayNames[d.getDay()];
+    days.push({
+      dateStr,
+      dayStr,
+      displayStr: `${d.getDate()} ${monthNames[d.getMonth()]} (${dayStr.substring(0, 3)})`,
+      rawDate: d,
+    });
+  }
+  return days;
+};
+
+const calculateNights = (inDateStr: string, outDateStr: string) => {
+  try {
+    const parseDate = (str: string) => {
+      const parts = str.split(' ');
+      const day = parseInt(parts[0], 10);
+      const months: { [key: string]: number } = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+      const month = months[parts[1]];
+      const year = parseInt(parts[2], 10);
+      return new Date(year, month, day);
+    };
+
+    const d1 = parseDate(inDateStr);
+    const d2 = parseDate(outDateStr);
+    const diffTime = d2.getTime() - d1.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 1;
+  } catch (e) {
+    return 1;
+  }
+};
+
+export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlights, onSelectProfile }: HotelSearchScreenProps) {
   const [activeCategory, setActiveCategory] = useState<HotelCategory>('Hotels');
   const [activeTab, setActiveTab] = useState<BottomTabType>('Home');
 
   // Search State
-  const [destination, setDestination] = useState<string>('Goa, India');
-  const [checkInDate, setCheckInDate] = useState<string>('12 Aug 2026');
-  const [checkInDay, setCheckInDay] = useState<string>('Wednesday');
-  const [checkOutDate, setCheckOutDate] = useState<string>('15 Aug 2026');
-  const [checkOutDay, setCheckOutDay] = useState<string>('Saturday');
-  const [nightsCount, setNightsCount] = useState<number>(3);
+  const [destination, setDestination] = useState<string>('');
+  const [destinationId, setDestinationId] = useState<string>('');
+  const initCheckIn = getFormattedDate(0);
+  const initCheckOut = getFormattedDate(1);
+
+  const [checkInDate, setCheckInDate] = useState<string>(initCheckIn.dateStr);
+  const [checkInDay, setCheckInDay] = useState<string>(initCheckIn.dayStr);
+  const [checkOutDate, setCheckOutDate] = useState<string>(initCheckOut.dateStr);
+  const [checkOutDay, setCheckOutDay] = useState<string>(initCheckOut.dayStr);
+  const [nightsCount, setNightsCount] = useState<number>(1);
+
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [datePickerType, setDatePickerType] = useState<'in' | 'out'>('in');
+
+  const [apiCities, setApiCities] = useState<any[]>([]);
+  const [loadingCities, setLoadingCities] = useState<boolean>(false);
 
   // Guests & Rooms State
   const [rooms, setRooms] = useState<number>(1);
   const [adults, setAdults] = useState<number>(2);
   const [children, setChildren] = useState<number>(0);
+
+  const handleSearchHotelsClick = () => {
+    if (!destination || !destination.trim()) {
+      Alert.alert('Required', 'Please enter city');
+      return;
+    }
+    const params = {
+      locationId: destinationId,
+      city: destination,
+      checkIn: checkInDate,
+      checkOut: checkOutDate,
+      rooms,
+      guests: adults + children,
+    };
+    if (onSearchHotels) onSearchHotels(params);
+  };
 
   // Modals & Pickers
   const [showCityModal, setShowCityModal] = useState<boolean>(false);
@@ -164,6 +249,10 @@ export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlig
         setShowCityModal(false);
         return true;
       }
+      if (showDatePicker) {
+        setShowDatePicker(false);
+        return true;
+      }
       if (showGuestModal) {
         setShowGuestModal(false);
         return true;
@@ -179,9 +268,71 @@ export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlig
     return () => backHandler.remove();
   }, [showCityModal, showGuestModal, onBack]);
 
-  const handleSelectCity = (cityName: string, countryName: string) => {
+  useEffect(() => {
+    if (!searchCityQuery.trim()) {
+      setApiCities([]);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setLoadingCities(true);
+      try {
+        const res = await hotelService.getLocations(searchCityQuery);
+        if (res && Array.isArray(res)) {
+          setApiCities(res);
+        } else if (res && Array.isArray(res.data)) {
+          setApiCities(res.data);
+        } else if (res && Array.isArray(res.locations)) {
+          setApiCities(res.locations);
+        } else {
+          setApiCities([]);
+        }
+      } catch (err) {
+        console.error('getLocations error:', err);
+      } finally {
+        setLoadingCities(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchCityQuery]);
+
+  const handleSelectCity = (cityName: string, countryName: string, locationId?: string) => {
     setDestination(`${cityName}, ${countryName}`);
+    if (locationId) {
+      setDestinationId(locationId);
+    }
     setShowCityModal(false);
+  };
+
+  const handleSelectDate = (dateStr: string, dayStr: string) => {
+    if (datePickerType === 'in') {
+      setCheckInDate(dateStr);
+      setCheckInDay(dayStr);
+      const nights = calculateNights(dateStr, checkOutDate);
+      if (nights <= 0 || isNaN(nights)) {
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const parts = dateStr.split(' ');
+        const day = parseInt(parts[0], 10);
+        const months: { [key: string]: number } = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+        const month = months[parts[1]];
+        const year = parseInt(parts[2], 10);
+        const nextDay = new Date(year, month, day + 1);
+        const nextDayStr = `${nextDay.getDate()} ${monthNames[nextDay.getMonth()]} ${nextDay.getFullYear()}`;
+        setCheckOutDate(nextDayStr);
+        setCheckOutDay(dayNames[nextDay.getDay()]);
+        setNightsCount(1);
+      } else {
+        setNightsCount(nights);
+      }
+    } else {
+      setCheckOutDate(dateStr);
+      setCheckOutDay(dayStr);
+      const nights = calculateNights(checkInDate, dateStr);
+      setNightsCount(nights > 0 ? nights : 1);
+    }
+    setShowDatePicker(false);
   };
 
   const filteredCities = POPULAR_CITIES.filter((c) =>
@@ -219,9 +370,9 @@ export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlig
                     <Text style={styles.backButtonText}>←</Text>
                   </TouchableOpacity>
                 )}
-                <Image 
-                  source={{ uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80' }} 
-                  style={styles.avatarImage} 
+                <Image
+                  source={{ uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80' }}
+                  style={styles.avatarImage}
                 />
                 <View style={styles.greetingContainer}>
                   <Text style={styles.greetingLabel}>Good Morning</Text>
@@ -284,7 +435,9 @@ export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlig
               </View>
               <View style={styles.inputContent}>
                 <Text style={styles.inputLabel}>CITY / DESTINATION / HOTEL</Text>
-                <Text style={styles.inputValueLarge}>{destination}</Text>
+                <Text style={[styles.inputValueLarge, !destination && { color: '#94a3b8' }]}>
+                  {destination || 'Where are you going?'}
+                </Text>
                 <Text style={styles.inputSubtext}>India • 420+ Luxury & Budget Stay Options</Text>
               </View>
               <Text style={styles.chevronIcon}>›</Text>
@@ -295,7 +448,14 @@ export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlig
             {/* Check-In and Check-Out Dates Block */}
             <View style={styles.dateRow}>
               {/* Check In */}
-              <TouchableOpacity style={styles.dateBox} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.dateBox}
+                onPress={() => {
+                  setDatePickerType('in');
+                  setShowDatePicker(true);
+                }}
+                activeOpacity={0.8}
+              >
                 <View style={styles.dateIconCircle}>
                   <Text style={styles.dateIconText}>📅</Text>
                 </View>
@@ -308,11 +468,18 @@ export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlig
 
               {/* Night Counter Badge */}
               <View style={styles.nightsBadge}>
-                <Text style={styles.nightsBadgeText}>{nightsCount} Nights</Text>
+                <Text style={styles.nightsBadgeText}>{nightsCount} {nightsCount === 1 ? 'Night' : 'Nights'}</Text>
               </View>
 
               {/* Check Out */}
-              <TouchableOpacity style={styles.dateBox} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.dateBox}
+                onPress={() => {
+                  setDatePickerType('out');
+                  setShowDatePicker(true);
+                }}
+                activeOpacity={0.8}
+              >
                 <View style={styles.dateIconCircle}>
                   <Text style={styles.dateIconText}>🗓</Text>
                 </View>
@@ -352,9 +519,7 @@ export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlig
             {/* Search Hotels Action Button */}
             <TouchableOpacity
               style={styles.searchButton}
-              onPress={() => {
-                if (onSearchHotels) onSearchHotels();
-              }}
+              onPress={handleSearchHotelsClick}
               activeOpacity={0.9}
             >
               <Text style={styles.searchButtonText}>SEARCH HOTELS 🔍</Text>
@@ -372,9 +537,7 @@ export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlig
                   onPress={() => handleSelectCity(city.name, city.country)}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.cityCardBg, { backgroundColor: city.imageBg }]}>
-                    <Text style={styles.cityCardIcon}>{city.icon}</Text>
-                  </View>
+                  <Image source={city.image} style={styles.cityCardImage} />
                   <Text style={styles.cityCardName}>{city.name}</Text>
                   <Text style={styles.cityCardCountry}>{city.country}</Text>
                 </TouchableOpacity>
@@ -423,13 +586,74 @@ export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlig
             setActiveTab(tab);
             if (tab === 'Home' && onBack) {
               onBack();
+            } else if (tab === 'My Account' && onSelectProfile) {
+              onSelectProfile();
             }
           }}
         />
       </Animated.View>
 
+      {/* Date Picker Modal */}
+      <Modal
+        visible={showDatePicker}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowDatePicker(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowDatePicker(false)}>
+              <Text style={styles.modalCloseText}>✕</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalHeaderTitle}>
+              {datePickerType === 'in' ? 'Select Check-In Date' : 'Select Check-Out Date'}
+            </Text>
+            <View style={{ width: 32 }} />
+          </View>
+
+          <ScrollView style={styles.modalCityList}>
+            {generateNext30Days()
+              .filter((day) => {
+                if (datePickerType === 'out') {
+                  try {
+                    const parseDate = (str: string) => {
+                      const parts = str.split(' ');
+                      const d = parseInt(parts[0], 10);
+                      const months: { [key: string]: number } = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+                      return new Date(parseInt(parts[2], 10), months[parts[1]], d);
+                    };
+                    return day.rawDate > parseDate(checkInDate);
+                  } catch (e) {
+                    return true;
+                  }
+                }
+                return true;
+              })
+              .map((day, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={styles.modalCityItem}
+                  onPress={() => handleSelectDate(day.dateStr, day.dayStr)}
+                >
+                  <Text style={styles.modalCityIcon}>📅</Text>
+                  <View style={styles.modalCityTextGroup}>
+                    <Text style={styles.modalCityName}>{day.displayStr}</Text>
+                    <Text style={styles.modalCityCountry}>{day.dateStr.split(' ')[2]}</Text>
+                  </View>
+                  <Text style={styles.modalSelectArrow}>›</Text>
+                </TouchableOpacity>
+              ))}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       {/* City Selection Modal */}
-      <Modal visible={showCityModal} animationType="slide" transparent={false}>
+      <Modal
+        visible={showCityModal}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowCityModal(false)}
+      >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowCityModal(false)}>
@@ -452,26 +676,43 @@ export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlig
           </View>
 
           <ScrollView style={styles.modalCityList}>
-            {filteredCities.map((city) => (
-              <TouchableOpacity
-                key={city.id}
-                style={styles.modalCityItem}
-                onPress={() => handleSelectCity(city.name, city.country)}
-              >
-                <Text style={styles.modalCityIcon}>{city.icon}</Text>
-                <View style={styles.modalCityTextGroup}>
-                  <Text style={styles.modalCityName}>{city.name}</Text>
-                  <Text style={styles.modalCityCountry}>{city.country}</Text>
-                </View>
-                <Text style={styles.modalSelectArrow}>›</Text>
-              </TouchableOpacity>
-            ))}
+            {loadingCities && (
+              <ActivityIndicator size="small" color="#0b2e66" style={{ marginVertical: 12 }} />
+            )}
+
+            {searchCityQuery.trim().length > 0 ? (
+              apiCities.map((item: any) => (
+                <TouchableOpacity
+                  key={item._id || item.locationId || item.id}
+                  style={styles.modalCityItem}
+                  onPress={() => handleSelectCity(item.name || item.cityName || item.locationName, item.country || '', item.locationId || item._id)}
+                >
+                  <Text style={styles.modalCityIcon}>🏙</Text>
+                  <View style={styles.modalCityTextGroup}>
+                    <Text style={styles.modalCityName}>{item.name || item.cityName || item.locationName}</Text>
+                    <Text style={styles.modalCityCountry}>{item.country || 'Location'}</Text>
+                  </View>
+                  <Text style={styles.modalSelectArrow}>›</Text>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={{ alignItems: 'center', marginTop: 40, paddingHorizontal: 20 }}>
+                <Text style={{ color: '#94a3b8', fontSize: 14, textAlign: 'center', fontFamily: FONT_FAMILY }}>
+                  Type above to search cities, areas or hotels...
+                </Text>
+              </View>
+            )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
 
       {/* Guest & Room Selector Modal */}
-      <Modal visible={showGuestModal} animationType="fade" transparent={true}>
+      <Modal
+        visible={showGuestModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setShowGuestModal(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.guestModalCard}>
             <Text style={styles.guestModalTitle}>Rooms & Guests</Text>
@@ -630,7 +871,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#ffffff',
     fontWeight: 'bold',
-    },
+  },
   userInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -648,13 +889,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#cbd5e1',
     fontWeight: '500',
-    },
+  },
   greetingName: {
     fontSize: 16,
     fontWeight: '700',
     color: '#ffffff',
     marginTop: 2,
-    },
+  },
   notificationBadge: {
     width: 40,
     height: 40,
@@ -700,6 +941,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     paddingHorizontal: 20,
     marginTop: 8,
+    fontFamily: FONT_FAMILY,
     marginBottom: 20,
   },
   categoryContainer: {
@@ -726,7 +968,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#cbd5e1',
-    },
+  },
   categoryTabTextActive: {
     color: '#0b2e66',
   },
@@ -764,18 +1006,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#64748b',
     letterSpacing: 0.8,
-    },
+  },
   inputValueLarge: {
     fontSize: 17,
     fontWeight: '800',
     color: '#0f172a',
     marginTop: 2,
-    },
+  },
   inputSubtext: {
     fontSize: 11,
     color: '#94a3b8',
     marginTop: 2,
-    },
+  },
   chevronIcon: {
     fontSize: 24,
     color: '#94a3b8',
@@ -813,11 +1055,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#0f172a',
     marginTop: 2,
-    },
+  },
   dateDayText: {
     fontSize: 11,
     color: '#64748b',
-    },
+  },
   nightsBadge: {
     backgroundColor: '#e0f2fe',
     paddingHorizontal: 8,
@@ -829,7 +1071,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     color: '#0284c7',
-    },
+  },
   filterChipsRow: {
     flexDirection: 'row',
     marginVertical: 16,
@@ -848,7 +1090,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#334155',
-    },
+  },
   searchButton: {
     backgroundColor: '#0000cd',
     borderRadius: 30,
@@ -867,7 +1109,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     letterSpacing: 1,
-    },
+  },
   sectionContainer: {
     marginTop: 24,
     paddingHorizontal: 20,
@@ -883,12 +1125,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#0f172a',
     marginBottom: 12,
-    },
+  },
   viewAllText: {
     fontSize: 12,
     fontWeight: '800',
     color: '#2563eb',
-    },
+  },
   popularCitiesScroll: {
     marginHorizontal: -20,
     paddingHorizontal: 20,
@@ -911,6 +1153,12 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  cityCardImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    marginBottom: 8,
+  },
   cityCardIcon: {
     fontSize: 32,
   },
@@ -919,12 +1167,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#0f172a',
     textAlign: 'center',
-    },
+  },
   cityCardCountry: {
     fontSize: 11,
     color: '#64748b',
     textAlign: 'center',
-    },
+  },
   hotelRecommendationCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
@@ -946,12 +1194,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: '#0f172a',
-    },
+  },
   hotelLocation: {
     fontSize: 12,
     color: '#64748b',
     marginTop: 2,
-    },
+  },
   hotelTagBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -961,7 +1209,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     color: '#ffffff',
-    },
+  },
   hotelFooterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -975,7 +1223,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: '#b45309',
-    },
+  },
   hotelPriceGroup: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -985,18 +1233,18 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     textDecorationLine: 'line-through',
     marginRight: 6,
-    },
+  },
   hotelPriceText: {
     fontSize: 16,
     fontWeight: '900',
     color: '#0b2e66',
-    },
+  },
   discountBadge: {
     fontSize: 10,
     fontWeight: '800',
     color: '#16a34a',
     marginLeft: 6,
-    },
+  },
 
   // Modal Styles
   modalContainer: {
@@ -1011,6 +1259,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderColor: '#e2e8f0',
+    marginTop: Platform.OS === 'android' ? 24 : 10,
   },
   modalCloseBtn: {
     width: 32,
@@ -1027,7 +1276,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
     color: '#0f172a',
-    },
+  },
   modalSearchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1046,7 +1295,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 14,
     color: '#0f172a',
-    },
+  },
   modalCityList: {
     flex: 1,
     paddingHorizontal: 20,
@@ -1069,12 +1318,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: '#0f172a',
-    },
+  },
   modalCityCountry: {
     fontSize: 12,
     color: '#64748b',
     marginTop: 2,
-    },
+  },
   modalSelectArrow: {
     fontSize: 22,
     color: '#cbd5e1',
@@ -1096,13 +1345,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#0f172a',
-    },
+  },
   guestModalSubtitle: {
     fontSize: 12,
     color: '#64748b',
     marginTop: 2,
     marginBottom: 20,
-    },
+  },
   counterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1113,12 +1362,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: '#0f172a',
-    },
+  },
   counterSublabel: {
     fontSize: 11,
     color: '#94a3b8',
     marginTop: 2,
-    },
+  },
   counterControls: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1145,7 +1394,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#0f172a',
     marginHorizontal: 16,
-    },
+  },
   dividerLight: {
     height: 1,
     backgroundColor: '#f1f5f9',
@@ -1163,5 +1412,5 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '800',
-    },
+  },
 });

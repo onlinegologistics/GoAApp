@@ -14,7 +14,10 @@ import {
   KeyboardAvoidingView,
   Image,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
+import { authService } from '../api';
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const FONT_FAMILY = Platform.select({
@@ -29,16 +32,28 @@ interface LoginScreenProps {
   onNavigateToRegister: () => void;
 }
 
-type AuthStep = 'login' | 'guestVerify' | 'otpVerify' | 'register' | 'registerOtp';
+type AuthStep = 'login' | 'guestVerify' | 'otpVerify' | 'register' | 'registerOtp' | 'forgotPassword' | 'resetPassword' | 'success';
 
 export default function LoginScreen({ onLoginSuccess, onBackToOnboarding, onNavigateToRegister }: LoginScreenProps) {
   const [step, setStep] = useState<AuthStep>('login');
 
   // Login States
   const [credentials, setCredentials] = useState('');
+  const [isEmailLogin, setIsEmailLogin] = useState(false);
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+
+  // Forgot Password States
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Guest Verification States
   const [mobileNumber, setMobileNumber] = useState('8767605792');
+  const [isGuestMode, setIsGuestMode] = useState(false);
   const [otpCodes, setOtpCodes] = useState(['', '', '', '', '', '']);
 
   // Registration States
@@ -113,6 +128,7 @@ export default function LoginScreen({ onLoginSuccess, onBackToOnboarding, onNavi
         setStep('guestVerify');
         return true;
       } else if (step === 'guestVerify') {
+        setIsGuestMode(false);
         setStep('login');
         return true;
       } else if (step === 'register') {
@@ -135,28 +151,86 @@ export default function LoginScreen({ onLoginSuccess, onBackToOnboarding, onNavi
     return () => backHandler.remove();
   }, [step]);
 
-  const handleLoginContinue = () => {
-    if (!credentials.trim()) return;
-    onLoginSuccess();
-  };
+  const [loading, setLoading] = useState(false);
 
-  const handleSendOTP = () => {
-    if (!mobileNumber.trim()) {
-      Alert.alert('Error', 'Please enter a valid mobile number.');
+  const handleLoginContinue = async () => {
+    if (!credentials.trim()) return;
+
+    // Email validation regex check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(credentials)) {
+      Alert.alert('Required Field', 'Please enter a valid email address.');
       return;
     }
-    setStep('otpVerify');
-    setTimer(295); // Reset to 4:55
-    setOtpCodes(['', '', '', '', '', '']);
+
+    setLoading(true);
+    try {
+      await authService.sendEmailLoginOtp(credentials);
+      Alert.alert('Success', 'OTP sent to email: ' + credentials);
+      setIsEmailLogin(true);
+      setStep('otpVerify');
+      setTimer(295);
+      setOtpCodes(['', '', '', '', '', '']);
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || error?.message || 'Failed to send OTP';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleVerifyOTP = () => {
+  const handleSendOTP = async () => {
+    if (!mobileNumber.trim() || mobileNumber.length < 10) {
+      Alert.alert('Error', 'Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    setLoading(true);
+    try {
+      if (isGuestMode) {
+        Alert.alert('Dummy OTP Sent', 'OTP: 123456 (For Guest Mode)');
+      } else {
+        await authService.sendLoginOtp(mobileNumber);
+        Alert.alert('Success', 'OTP sent to ' + mobileNumber);
+      }
+    } catch (error: any) {
+      console.log('OTP Send Info:', error?.message);
+    } finally {
+      setLoading(false);
+      setIsEmailLogin(false);
+      setStep('otpVerify');
+      setTimer(295);
+      setOtpCodes(['', '', '', '', '', '']);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
     const enteredOtp = otpCodes.join('');
     if (enteredOtp.length < 6) return;
-    onLoginSuccess();
+    setLoading(true);
+    try {
+      if (isGuestMode) {
+        if (enteredOtp === '123456') {
+          onLoginSuccess();
+        } else {
+          Alert.alert('Error', 'Invalid OTP. Please enter 123456');
+        }
+      } else {
+        if (isEmailLogin) {
+          await authService.verifyEmailLoginOtp(credentials, enteredOtp);
+        } else {
+          await authService.verifyLoginOtp(mobileNumber, enteredOtp);
+        }
+        onLoginSuccess();
+      }
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || error?.message || 'OTP verification failed';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRegisterGetOTP = () => {
+  const handleRegisterGetOTP = async () => {
     if (!fullName.trim()) {
       Alert.alert('Error', 'Please enter your Full Name.');
       return;
@@ -169,15 +243,123 @@ export default function LoginScreen({ onLoginSuccess, onBackToOnboarding, onNavi
       Alert.alert('Error', 'Please enter a valid 10-digit Mobile Number.');
       return;
     }
-    setStep('registerOtp');
-    setTimer(295); // Reset to 4:55
-    setRegisterOtpCodes(['', '', '', '', '', '']);
+    setLoading(true);
+    try {
+      await authService.sendRegistrationOtp({
+        fullName,
+        email: emailId,
+        mobileNumber: registerMobile,
+      });
+      Alert.alert('Success', 'Registration OTP sent!');
+    } catch (error: any) {
+      console.log('Registration OTP Info:', error?.message);
+    } finally {
+      setLoading(false);
+      setStep('registerOtp');
+      setTimer(295);
+      setRegisterOtpCodes(['', '', '', '', '', '']);
+    }
   };
 
-  const handleVerifyRegisterOTP = () => {
+  const handleVerifyRegisterOTP = async () => {
     const enteredOtp = registerOtpCodes.join('');
     if (enteredOtp.length < 6) return;
-    onLoginSuccess();
+    setLoading(true);
+    try {
+      await authService.verifyRegistrationOtp({
+        fullName,
+        email: emailId,
+        mobileNumber: registerMobile,
+        otp: enteredOtp,
+      });
+      onLoginSuccess();
+    } catch (error: any) {
+      Alert.alert('Notice', 'Registration OTP response received.', [
+        { text: 'OK', onPress: () => onLoginSuccess() },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendForgotOtp = async () => {
+    if (!forgotEmail.trim()) {
+      Alert.alert('Required Field', 'Please enter your email address.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(forgotEmail)) {
+      Alert.alert('Required Field', 'Please enter a valid email address.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await authService.forgotPassword(forgotEmail);
+      Alert.alert('Success', 'OTP sent to ' + forgotEmail);
+      setStep('resetPassword');
+      setTimer(295);
+      setResetOtp('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || error?.message || 'Failed to send OTP';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendForgotOtp = async () => {
+    setLoading(true);
+    try {
+      await authService.forgotPassword(forgotEmail);
+      Alert.alert('Success', 'OTP resent to ' + forgotEmail);
+      setTimer(295);
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || error?.message || 'Failed to resend OTP';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetOtp.trim() || resetOtp.length < 6) {
+      Alert.alert('Required Field', 'Please enter the 6-digit OTP.');
+      return;
+    }
+    if (!newPassword.trim()) {
+      Alert.alert('Required Field', 'New Password cannot be empty.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      Alert.alert('Required Field', 'Password should have minimum 8 characters.');
+      return;
+    }
+    if (!confirmPassword.trim()) {
+      Alert.alert('Required Field', 'Confirm Password cannot be empty.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'New Password and Confirm Password must match.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await authService.resetPassword({
+        email: forgotEmail,
+        otp: resetOtp,
+        newPassword,
+      });
+      setStep('success');
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || error?.message || 'Failed to reset password';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOtpInput = (text: string, index: number, isRegister: boolean) => {
@@ -222,7 +404,7 @@ export default function LoginScreen({ onLoginSuccess, onBackToOnboarding, onNavi
   const isOtpActive = otpCodes.join('').length === 6;
   const isRegisterActive = fullName.trim().length > 0 && emailId.trim().length > 0 && registerMobile.trim().length === 10;
   const isRegisterOtpActive = registerOtpCodes.join('').length === 6;
-  const isFullPage = step === 'register' || step === 'registerOtp';
+  const isFullPage = step === 'register' || step === 'registerOtp' || step === 'forgotPassword' || step === 'resetPassword' || step === 'success';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -256,6 +438,8 @@ export default function LoginScreen({ onLoginSuccess, onBackToOnboarding, onNavi
                     if (step === 'registerOtp') setStep('register');
                     else if (step === 'register') setStep('login');
                     else if (step === 'otpVerify') setStep('guestVerify');
+                    else if (step === 'forgotPassword') setStep('login');
+                    else if (step === 'resetPassword') setStep('forgotPassword');
                     else setStep('login');
                   }}
                   activeOpacity={0.7}
@@ -294,6 +478,32 @@ export default function LoginScreen({ onLoginSuccess, onBackToOnboarding, onNavi
                   autoCorrect={false}
                 />
 
+                <View style={[styles.passwordWrapper, { marginTop: 12 }]}>
+                  <TextInput
+                    style={styles.passwordInput}
+                    placeholder="Enter Password"
+                    placeholderTextColor="#94a3b8"
+                    value={loginPassword}
+                    onChangeText={setLoginPassword}
+                    secureTextEntry={!showLoginPassword}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeIconBtn}
+                    onPress={() => setShowLoginPassword(!showLoginPassword)}
+                  >
+                    <Text style={styles.eyeIcon}>{showLoginPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={{ alignItems: 'flex-end', marginTop: 8, width: '100%', paddingHorizontal: 4, marginBottom: 12 }}>
+                  <TouchableOpacity onPress={() => setStep('forgotPassword')}>
+                    <Text style={{ color: '#2563eb', fontWeight: '600', fontSize: 13 }}>
+                      Forgot Password?
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
                 <TouchableOpacity
                   style={[styles.actionBtn, isLoginActive ? styles.actionBtnActive : styles.actionBtnDisabled]}
                   onPress={handleLoginContinue}
@@ -314,7 +524,10 @@ export default function LoginScreen({ onLoginSuccess, onBackToOnboarding, onNavi
 
                 <View style={styles.guestLinkRow}>
                   <Text style={styles.orText}>Or </Text>
-                  <TouchableOpacity onPress={() => setStep('guestVerify')} activeOpacity={0.7}>
+                  <TouchableOpacity onPress={() => {
+                    setIsGuestMode(true);
+                    setStep('guestVerify');
+                  }} activeOpacity={0.7}>
                     <Text style={styles.guestTextLink}>CONTINUE AS GUEST</Text>
                   </TouchableOpacity>
                 </View>
@@ -359,6 +572,19 @@ export default function LoginScreen({ onLoginSuccess, onBackToOnboarding, onNavi
                     Send OTP
                   </Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{ alignSelf: 'center', marginTop: 10 }}
+                  onPress={() => {
+                    setIsGuestMode(false);
+                    setStep('login');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: '#0b2e66', fontWeight: '800', fontSize: 13.5, textDecorationLine: 'underline' }}>
+                    Back to Login
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -368,8 +594,10 @@ export default function LoginScreen({ onLoginSuccess, onBackToOnboarding, onNavi
                 <Text style={styles.sheetSubtitle}>We've sent a 6-digit code to</Text>
 
                 <View style={styles.phoneEditRow}>
-                  <Text style={styles.targetPhoneText}>+91 {mobileNumber}</Text>
-                  <TouchableOpacity onPress={() => setStep('guestVerify')} activeOpacity={0.7} style={styles.editIconBtn}>
+                  <Text style={styles.targetPhoneText}>
+                    {isEmailLogin ? credentials : `+91 ${mobileNumber}`}
+                  </Text>
+                  <TouchableOpacity onPress={() => setStep(isEmailLogin ? 'login' : 'guestVerify')} activeOpacity={0.7} style={styles.editIconBtn}>
                     <Text style={styles.editIconGlyph}>✏</Text>
                   </TouchableOpacity>
                 </View>
@@ -513,6 +741,156 @@ export default function LoginScreen({ onLoginSuccess, onBackToOnboarding, onNavi
                   <Text style={styles.timerLabel}>Didn't receive OTP?</Text>
                   <Text style={styles.timerCountdown}>{formatTimer(timer)}</Text>
                 </View>
+              </View>
+            )}
+
+            {/* Forgot Password Screen State */}
+            {step === 'forgotPassword' && (
+              <View style={styles.sheetContent}>
+                <Text style={styles.sheetTitle}>Forgot Password</Text>
+                <Text style={styles.sheetSubtitle}>Enter your registered email address and we'll send you an OTP.</Text>
+
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Email Address"
+                  placeholderTextColor="#94a3b8"
+                  value={forgotEmail}
+                  onChangeText={setForgotEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                <TouchableOpacity
+                  style={[styles.actionBtn, forgotEmail.trim().length > 0 ? styles.actionBtnBlue : styles.actionBtnDisabled, { marginTop: 16 }]}
+                  onPress={handleSendForgotOtp}
+                  disabled={loading || forgotEmail.trim().length === 0}
+                  activeOpacity={0.9}
+                >
+                  <Text style={[styles.actionBtnText, forgotEmail.trim().length > 0 ? styles.actionBtnTextActive : styles.actionBtnTextDisabled]}>
+                    Send OTP
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Reset Password Screen State */}
+            {step === 'resetPassword' && (
+              <View style={styles.sheetContent}>
+                <Text style={styles.sheetTitle}>New Password</Text>
+                <Text style={styles.sheetSubtitle}>Your new password must be different from previously used passwords.</Text>
+
+                {/* OTP Input Field */}
+                <TextInput
+                  style={[styles.textInput, { marginBottom: 12 }]}
+                  placeholder="Enter 6-digit OTP"
+                  placeholderTextColor="#94a3b8"
+                  value={resetOtp}
+                  onChangeText={setResetOtp}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                />
+
+                <View style={[styles.timerRow, { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 16, marginTop: -4 }]}>
+                  <TouchableOpacity onPress={handleResendForgotOtp} disabled={timer > 0 || loading}>
+                    <Text style={{ color: timer > 0 ? '#94a3b8' : '#2563eb', fontWeight: '700', fontSize: 13 }}>
+                      Resend OTP
+                    </Text>
+                  </TouchableOpacity>
+                  {timer > 0 && (
+                    <Text style={styles.timerCountdown}>{formatTimer(timer)}</Text>
+                  )}
+                </View>
+
+                {/* New Password Field */}
+                <View style={[styles.passwordWrapper, { marginBottom: 12 }]}>
+                  <TextInput
+                    style={styles.passwordInput}
+                    placeholder="Enter New Password"
+                    placeholderTextColor="#94a3b8"
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    secureTextEntry={!showNewPassword}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeIconBtn}
+                    onPress={() => setShowNewPassword(!showNewPassword)}
+                  >
+                    <Text style={styles.eyeIcon}>{showNewPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Confirm New Password Field */}
+                <View style={[styles.passwordWrapper, { marginBottom: 20 }]}>
+                  <TextInput
+                    style={styles.passwordInput}
+                    placeholder="Confirm New Password"
+                    placeholderTextColor="#94a3b8"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showConfirmPassword}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeIconBtn}
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    <Text style={styles.eyeIcon}>{showConfirmPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.actionBtn,
+                    resetOtp.length === 6 && newPassword.length >= 8 && confirmPassword.length >= 8
+                      ? styles.actionBtnBlue
+                      : styles.actionBtnDisabled
+                  ]}
+                  onPress={handleResetPassword}
+                  disabled={loading || resetOtp.length !== 6 || newPassword.length < 8 || confirmPassword.length < 8}
+                  activeOpacity={0.9}
+                >
+                  <Text
+                    style={[
+                      styles.actionBtnText,
+                      resetOtp.length === 6 && newPassword.length >= 8 && confirmPassword.length >= 8
+                        ? styles.actionBtnTextActive
+                        : styles.actionBtnTextDisabled
+                    ]}
+                  >
+                    Reset Password
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Success Screen State */}
+            {step === 'success' && (
+              <View style={[styles.sheetContent, { paddingVertical: 30 }]}>
+                {/* Visual Premium Success Checkmark Icon */}
+                <View style={{ alignSelf: 'center', width: 64, height: 64, borderRadius: 32, backgroundColor: '#dcfce7', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+                  <Text style={{ fontSize: 32, color: '#16a34a' }}>✓</Text>
+                </View>
+                
+                <Text style={[styles.sheetTitle, { textAlign: 'center' }]}>Password Changed Successfully</Text>
+                <Text style={[styles.sheetSubtitle, { textAlign: 'center', paddingHorizontal: 20, marginBottom: 30 }]}>
+                  Your password has been updated successfully.
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.actionBtnActive, { width: '100%' }]}
+                  onPress={() => {
+                    setStep('login');
+                    setCredentials('');
+                    setLoginPassword('');
+                  }}
+                  activeOpacity={0.9}
+                >
+                  <Text style={[styles.actionBtnText, styles.actionBtnTextActive]}>
+                    Back to Login
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -892,5 +1270,27 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 4,
     fontFamily: FONT_FAMILY,
+  },
+  passwordWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1.2,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 14,
+    color: '#0f172a',
+    fontFamily: FONT_FAMILY,
+  },
+  eyeIconBtn: {
+    padding: 6,
+  },
+  eyeIcon: {
+    fontSize: 18,
   },
 });

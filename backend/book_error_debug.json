@@ -1,0 +1,277 @@
+{
+  "timestamp": "2026-08-04T14:41:06.282Z",
+  "requestBody": {
+    "sessionId": "65273301_fb516389-4a45-430d-9467-a8b5a38be3d7-260804153435",
+    "travelIds": [
+      "INDIGO__OWBLRBOM1006E5051be13b975207d45eebfa6dc49a3f6dd3dexp1785845076147_B2B__DC_dc1__SC"
+    ],
+    "passenger": {
+      "title": "Mr",
+      "firstName": "Rutuja",
+      "lastName": "Dhayatidak",
+      "gender": "MALE",
+      "type": "ADT",
+      "dob": "2001-08-04",
+      "label": "Adult 1",
+      "id": "adult-0",
+      "selectedSeat": "6A",
+      "selectedReturnSeat": "None",
+      "selectedMeal": "None",
+      "selectedBaggage": "None"
+    },
+    "passengers": [
+      {
+        "title": "Mr",
+        "firstName": "Rutuja",
+        "lastName": "Dhayatidak",
+        "gender": "MALE",
+        "type": "ADT",
+        "dob": "2001-08-04",
+        "label": "Adult 1",
+        "id": "adult-0",
+        "selectedSeat": "6A",
+        "selectedReturnSeat": "None",
+        "selectedMeal": "None",
+        "selectedBaggage": "None"
+      }
+    ],
+    "flight": {
+      "id": "6E-5051-BLR-BOM-1786244400",
+      "segments": [
+        {
+          "id": "6E-5051-BLR-BOM-1786244400",
+          "flightNumber": "6E-5051",
+          "airlineCode": "6E",
+          "airlineName": "IndiGo",
+          "origin": "BLR",
+          "destination": "BOM",
+          "departureDateTime": "2026-08-09T08:30:00+05:30",
+          "arrivalDateTime": "2026-08-09T10:15:00+05:30",
+          "duration": "1h 45m",
+          "originAirportName": "Kempegowda International Airport, Bangalore",
+          "destinationAirportName": "Chatrapati Shivaji Airport, Mumbai",
+          "cabinType": "ECONOMY",
+          "brandName": "REGULAR",
+          "aircraft": "Not Available",
+          "availableSeats": 2,
+          "cabinBaggage": "7 KG (1 Piece)",
+          "checkInBaggage": "15 KG (1 Piece)"
+        }
+      ],
+      "price": 4774,
+      "baseFare": 3915,
+      "taxes": 859,
+      "isRefundable": true,
+      "airlineName": "IndiGo",
+      "airlineCode": "6E",
+      "stopsCount": 0,
+      "benefits": [
+        {
+          "type": "FARE_RULE",
+          "value": "REFUNDABLE",
+          "description": "Refund Allowed as per Fare Rules"
+        }
+      ],
+      "rawOption": {
+        "travelOptionId": "6E-5051-BLR-BOM-1786244400",
+        "subTravelOptionId": "6E-5051-BLR-BOM-1786244400",
+        "fareId": "REGULAR__09/08/2026__6E__6E__BLR_BOM__true__RETAIL__E__DOM__OW__UNKNOWN__S050__REGULAR__AVN+Z51boVbN2XCC1C4G+6+kcoUS2St81Xqig4ziM1JbeTyvGW9kcRkOH2qFYwPheq47Bdn7oM9zGKQ7BvwMDRz5yxRlOk8tANm2icKP2YaEQ/wfvFSfL5MIWDhLv5vyh3IOWqlOc3AduMVkiTjFHiqttKF4WMiKTz+7kLTRT3SwZnO9Kvwlg87h4KpOSmYEo83O6BpTetersMozukRFBrdftCNBPghms2j4oM/8p+LVC2ohrvlWn2PJIaAAGI1ZEtlBYHWUYy08gDVIg6USDzsNgvkLoos=~~V3"
+      }
+    },
+    "holdData": {
+      "travelOptionList": [
+        {
+          "travelOptionId": "6E-5051-BLR-BOM-1786244400",
+          "holdStatus": "SUCCESS",
+          "indicators": [
+            {
+              "type": "NO_CHANGE"
+            }
+          ],
+          "subTravelOptions": [
+            {
+              "subTravelOptionId": "6E-5051-BLR-BOM-1786244400",
+              "subTravelType": "FLIGHT",
+              "travelId": "INDIGO__OWBLRBOM1006E5051be13b975207d45eebfa6dc49a3f6dd3dexp1785845076147_B2B__DC_dc1__SC",
+              "fareId": "REGULAR__09/08/2026__6E__6E__BLR_BOM__true__RETAIL__E__DOM__OW__UNKNOWN__S050__REGULAR__AVN+Z51boVbN2XCC1C4G+6+kcoUS2St81Xqig4ziM1JbeTyvGW9kcRkOH2qFYwPheq47Bdn7oM9zGKQ7BvwMDRz5yxRlOk8tANm2icKP2YaEQ/wfvFSfL5MIWDhLv5vyh3IOWqlOc3AduMVkiTjFHiqttKF4WMiKTz+7kLTRT3SwZnO9Kvwlg87h4KpOSmYEo83O6BpTetersMozukRFBrdftCNBPghms2j4oM/8p+LVC2ohrvlWn2PJIaAAGI1ZEtlBYHWUYy08gDVIg6USDzsNgvkLoos=~~V3",
+              "fare": {
+                "fareId": "REGULAR__09/08/2026__6E__6E__BLR_BOM__true__RETAIL__E__DOM__OW__UNKNOWN__S050__REGULAR__AVN+Z51boVbN2XCC1C4G+6+kcoUS2St81Xqig4ziM1JbeTyvGW9kcRkOH2qFYwPheq47Bdn7oM9zGKQ7BvwMDRz5yxRlOk8tANm2icKP2YaEQ/wfvFSfL5MIWDhLv5vyh3IOWqlOc3AduMVkiTjFHiqttKF4WMiKTz+7kLTRT3SwZnO9Kvwlg87h4KpOSmYEo83O6BpTetersMozukRFBrdftCNBPghms2j4oM/8p+LVC2ohrvlWn2PJIaAAGI1ZEtlBYHWUYy08gDVIg6USDzsNgvkLoos=~~V3",
+                "fareGroup": "REGULAR_FARE",
+                "fareCategory": "RETAIL",
+                "pricing": {
+                  "totalPrice": 4774,
+                  "totalTax": 1774,
+                  "totalBaseFare": 3000,
+                  "totalPricePerAdult": 4774,
+                  "fee": 0,
+                  "discount": 0,
+                  "otherCharges": 0,
+                  "convenienceFee": 0
+                },
+                "subTravelOptionFare": [
+                  {
+                    "subTravelOptionKey": "BLR_BOM",
+                    "paxFare": [
+                      {
+                        "paxType": "ADT",
+                        "paxCount": 1,
+                        "priceComponents": [
+                          {
+                            "category": "BF",
+                            "code": "",
+                            "amount": 3000,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "SGST",
+                            "amount": 181,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "YQ",
+                            "amount": 400,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "AIRLINE-MSC",
+                            "amount": 325,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "CUTE",
+                            "amount": 50,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "RCF",
+                            "amount": 50,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "UDF",
+                            "amount": 649,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "TTF",
+                            "amount": 119,
+                            "currency": "INR"
+                          }
+                        ],
+                        "otherCharges": 0,
+                        "convenienceFee": 0
+                      }
+                    ],
+                    "flightFare": [
+                      {
+                        "flightId": "6E-5051-BLR-BOM-1786244400",
+                        "paxFares": [
+                          {
+                            "paxType": "ADT",
+                            "paxCount": 1,
+                            "priceComponents": [
+                              {
+                                "category": "BF",
+                                "code": "",
+                                "amount": 3000,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "TAX",
+                                "code": "SGST",
+                                "amount": 181,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "TAX",
+                                "code": "YQ",
+                                "amount": 400,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "TAX",
+                                "code": "AIRLINE-MSC",
+                                "amount": 325,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "TAX",
+                                "code": "CUTE",
+                                "amount": 50,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "TAX",
+                                "code": "RCF",
+                                "amount": 50,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "TAX",
+                                "code": "UDF",
+                                "amount": 649,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "TAX",
+                                "code": "TTF",
+                                "amount": 119,
+                                "currency": "INR"
+                              }
+                            ],
+                            "otherCharges": 0,
+                            "convenienceFee": 0
+                          }
+                        ],
+                        "identifiers": {
+                          "cabinType": "ECONOMY",
+                          "fareClass": "R",
+                          "fareBasisCode": "R0IP",
+                          "rbd": "R",
+                          "availableSeatCount": 2,
+                          "brandName": "REGULAR",
+                          "brand": "REGULAR"
+                        }
+                      }
+                    ],
+                    "revenue": 0
+                  }
+                ],
+                "data": {
+                  "AGENT_PCC": "1430772",
+                  "CTC": "4774.0",
+                  "SUPPLIER": "INDIGO",
+                  "VALIDATING_CARRIER": "6E"
+                },
+                "transitVisaRequired": false,
+                "refundable": false,
+                "checkInBaggageAllowed": true
+              },
+              "passengerAncillaries": [
+                {
+                  "paxIndex": 1,
+                  "ancillaryHoldStatus": [],
+                  "flightAncillaries": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "total": 4774
+  },
+  "error": "Request failed with status code 500",
+  "statusCode": 500,
+  "response": {
+    "status": "BOOK_FAILURE",
+    "errorMessage": "Book failed"
+  }
+}

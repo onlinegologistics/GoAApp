@@ -13,6 +13,8 @@ import {
   Platform,
 } from 'react-native';
 import BottomTabNavigation, { BottomTabType } from '../components/BottomTabNavigation';
+import { flightService } from '../api';
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const FONT_FAMILY = Platform.select({
@@ -87,9 +89,10 @@ interface SearchScreenProps {
   onSearch: () => void;
   onBack?: () => void;
   onSelectHotels?: () => void;
+  onSelectProfile?: () => void;
 }
 
-export default function SearchScreen({ onSearch, onBack, onSelectHotels }: SearchScreenProps) {
+export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelectProfile }: SearchScreenProps) {
   const [activeCategory, setActiveCategory] = useState<CategoryType>('Flights');
   const [activeTab, setActiveTab] = useState<BottomTabType>('Home');
   const [tripType, setTripType] = useState<TripType>('One Way');
@@ -103,6 +106,27 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels }: Searc
   const [children, setChildren] = useState<number>(0);
   const [infants, setInfants] = useState<number>(0);
   const [showTravelerDropdown, setShowTravelerDropdown] = useState<boolean>(false);
+
+  const handleSearchClick = async () => {
+    try {
+      await flightService.searchFlights({
+        from: fromLocation,
+        to: toLocation,
+        departDate: new Date().toISOString(),
+        passengers: { adults, children, infants },
+      });
+    } catch (e: any) {
+      console.log('Flight Search API:', e?.message);
+    }
+    onSearch();
+  };
+
+  const handleTabChange = (tab: BottomTabType) => {
+    setActiveTab(tab);
+    if (tab === 'My Account' && onSelectProfile) {
+      onSelectProfile();
+    }
+  };
 
   // Stepper Functions
   const incrementAdults = () => setAdults((prev) => Math.min(prev + 1, 9));
@@ -380,7 +404,7 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels }: Searc
             )}
 
             {/* Search Button */}
-            <TouchableOpacity style={styles.searchBtn} onPress={onSearch} activeOpacity={0.9}>
+            <TouchableOpacity style={styles.searchBtn} onPress={handleSearchClick} activeOpacity={0.9}>
               <Text style={styles.searchBtnText}>Search</Text>
             </TouchableOpacity>
           </View>
@@ -417,7 +441,7 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels }: Searc
         </ScrollView>
 
         {/* Reusable Bottom Navigation Component */}
-        <BottomTabNavigation activeTab={activeTab} onChangeTab={setActiveTab} />
+        <BottomTabNavigation activeTab={activeTab} onChangeTab={handleTabChange} />
       </Animated.View>
     </SafeAreaView>
   );

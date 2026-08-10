@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": 500,
+    "message": "java.lang.RuntimeException : Could not find matching subTravelOption in cache : com.cleartrip.distribution.ancillary.orchestrator.adapter.SOSRepositoryRequestMapper.lambda$getCachedSubTravelOption$4(SOSRepositoryRequestMapper.java:98)\njava.base/java.util.Optional.orElseThrow(Unknown Source)\ncom.cleartrip.distribution.ancillary.orchestrator.adapter.SOSRepositoryRequestMapper.getCachedSubTravelOption(SOSRepositoryRequestMapper.java:98)"
+  }
+}

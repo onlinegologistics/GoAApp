@@ -47,9 +47,9 @@ export default function FilterScreen({
 
   const clearAllFilters = () => {
     setSelectedSort('popularity');
-    setSelectedPrice('under-5k');
-    setSelectedRating('4plus');
-    setSelectedStars('4star');
+    setSelectedPrice('all');
+    setSelectedRating('all');
+    setSelectedStars('all');
   };
 
   return (

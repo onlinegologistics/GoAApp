@@ -1,0 +1,64 @@
+{
+    "tripId": "Q260810970092",
+    "contactDetail": {
+        "title": "Mr.",
+        "firstName": "Rutuja ",
+        "lastName": "Dhayatidak ",
+        "email": "rdhayatidak@gmail.com",
+        "mobile": "9876543210",
+        "landline": "9876543210"
+    },
+    "paymentDetail": {
+        "paymentType": "DA",
+        "amount": "3087.00",
+        "currency": "INR",
+        "status": "SUCCESS"
+    },
+    "hotelDetail": {
+        "hotelId": "1352788",
+        "name": "Hotel Europe Plaza",
+        "address": "GATE NO 1,  behind METRO,  Cash and Pay Colony,  Charbagh,  Lucknow,  Uttar Pradesh 226004,Lucknow,226004",
+        "city": "Lucknow, Uttar Pradesh India",
+        "checkInDate": "2026-08-25",
+        "checkOutDate": "2026-08-26"
+    },
+    "pricing": {
+        "roomRate": 3279.5,
+        "hotelTaxes": 157.5,
+        "discount": 350.0,
+        "cashback": 0.0,
+        "totalFare": 3087.0,
+        "totalFee": 0.0,
+        "serviceTax": 0.0,
+        "currency": "INR"
+    },
+    "bookingInfo": {
+        "bookingStatus": "Confirmed",
+        "voucherNumber": "7397419607830"
+    },
+    "rooms": [
+        {
+            "roomTypeName": "Standard Room with Window",
+            "roomName": "Standard Room with Window",
+            "guests": {
+                "adults": 2
+            }
+        }
+    ],
+    "cancellationPolicy": {
+        "text": "Fully refundable for cancellations done before 06:00 PM, 24 August (local time at the property). Charges for cancellations done after 06:00 PM, 24 August (local time at the property) -  booking amount equivalent to 1 night and taxes. ",
+        "cancellationPolicySlabs": [
+            {
+                "startTime": 1786344868414,
+                "endTime": 1787574600000,
+                "penaltyAmount": 0.0
+            },
+            {
+                "startTime": 1787574600000,
+                "endTime": 1787661000000,
+                "penaltyAmount": 3087.0
+            }
+        ]
+    },
+    "panCardNumber": ""
+}

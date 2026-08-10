@@ -1,0 +1,10 @@
+{
+    "ignore": [
+        "uploads/*",
+        "uploads/",
+        "*.json",
+        "hold_payload_debug.json",
+        "ancillaries_debug.json",
+        "test_*.js"
+    ]
+}

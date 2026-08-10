@@ -14,7 +14,10 @@ import {
   Animated,
   ScrollView,
   Image,
+  ActivityIndicator,
 } from 'react-native';
+import { authService } from '../api';
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const FONT_FAMILY = Platform.select({
@@ -31,9 +34,13 @@ interface RegisterScreenProps {
 export default function RegisterScreen({ onRegisterSuccess, onBackToLogin }: RegisterScreenProps) {
   const [fullName, setFullName] = useState('');
   const [emailId, setEmailId] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
   const [password, setPassword] = useState('');
-  const [secureText, setSecureText] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(true);
+
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -55,24 +62,72 @@ export default function RegisterScreen({ onRegisterSuccess, onBackToLogin }: Reg
     ]).start();
   }, []);
 
-  const handleSignUp = () => {
+  const [loading, setLoading] = useState(false);
+
+  const handleSignUp = async () => {
     if (!fullName.trim()) {
-      Alert.alert('Required Field', 'Please enter your Name.');
+      Alert.alert('Required Field', 'Please enter your Full Name.');
       return;
     }
     if (!emailId.trim()) {
       Alert.alert('Required Field', 'Please enter your Email.');
       return;
     }
+    if (!mobileNumber.trim() || mobileNumber.length < 10) {
+      Alert.alert('Required Field', 'Please enter a valid 10-digit Mobile Number.');
+      return;
+    }
     if (!password.trim()) {
       Alert.alert('Required Field', 'Please enter a Password.');
+      return;
+    }
+    if (password.length < 8) {
+      Alert.alert('Required Field', 'Password should have minimum 8 characters.');
       return;
     }
     if (!agreeTerms) {
       Alert.alert('Agreement Required', 'Please agree to the Terms & Condition to proceed.');
       return;
     }
-    onRegisterSuccess();
+    setLoading(true);
+    try {
+      await authService.sendRegistrationOtp({
+        fullName,
+        email: emailId,
+        mobileNumber: mobileNumber,
+      });
+      Alert.alert('OTP Sent', 'An OTP has been sent to your email ' + emailId);
+      setIsOtpSent(true);
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || error?.message || 'Failed to send OTP';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp.trim() || otp.length < 6) {
+      Alert.alert('Required Field', 'Please enter a valid 6-digit OTP.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await authService.verifyRegistrationOtp({
+        fullName,
+        email: emailId,
+        mobileNumber,
+        otp,
+        password,
+      });
+      Alert.alert('Success', 'Registration successful!');
+      onRegisterSuccess();
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || error?.message || 'OTP verification failed';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -107,82 +162,145 @@ export default function RegisterScreen({ onRegisterSuccess, onBackToLogin }: Reg
 
             {/* Form Fields */}
             <View style={styles.formContainer}>
-              
-              {/* Name Field */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Name</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="John Doe"
-                  placeholderTextColor="#94a3b8"
-                  value={fullName}
-                  onChangeText={setFullName}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                />
-              </View>
+              {!isOtpSent ? (
+                <>
+                  {/* Full Name Field */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Full Name</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="John Doe"
+                      placeholderTextColor="#94a3b8"
+                      value={fullName}
+                      onChangeText={setFullName}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                    />
+                  </View>
 
-              {/* Email Field */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Email</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="example@gmail.com"
-                  placeholderTextColor="#94a3b8"
-                  value={emailId}
-                  onChangeText={setEmailId}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
+                  {/* Email Field */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Email</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="example@gmail.com"
+                      placeholderTextColor="#94a3b8"
+                      value={emailId}
+                      onChangeText={setEmailId}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
 
-              {/* Password Field */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Password</Text>
-                <View style={styles.passwordWrapper}>
-                  <TextInput
-                    style={styles.passwordInput}
-                    placeholder="***************"
-                    placeholderTextColor="#94a3b8"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={secureText}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
+                  {/* Mobile Number Field */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Mobile Number</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="Enter 10 digit mobile number"
+                      placeholderTextColor="#94a3b8"
+                      value={mobileNumber}
+                      onChangeText={setMobileNumber}
+                      keyboardType="number-pad"
+                      maxLength={10}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+
+                  {/* Password Field */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Password</Text>
+                    <View style={styles.passwordWrapper}>
+                      <TextInput
+                        style={styles.passwordInput}
+                        placeholder="Create a Password"
+                        placeholderTextColor="#94a3b8"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      <TouchableOpacity
+                        style={styles.eyeIconBtn}
+                        onPress={() => setShowPassword(!showPassword)}
+                      >
+                        <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Terms Checkbox Row */}
                   <TouchableOpacity
-                    style={styles.eyeIconBtn}
-                    onPress={() => setSecureText(!secureText)}
-                    activeOpacity={0.7}
+                    style={styles.checkboxRow}
+                    onPress={() => setAgreeTerms(!agreeTerms)}
+                    activeOpacity={0.8}
                   >
-                    <Text style={styles.eyeIcon}>{secureText ? '👁️' : '🙈'}</Text>
+                    <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
+                      {agreeTerms && <Text style={styles.checkmark}>✓</Text>}
+                    </View>
+                    <Text style={styles.checkboxLabel}>
+                      Agree with <Text style={styles.linkText}>Terms & Condition</Text>
+                    </Text>
                   </TouchableOpacity>
-                </View>
-              </View>
 
-              {/* Terms Checkbox Row */}
-              <TouchableOpacity
-                style={styles.checkboxRow}
-                onPress={() => setAgreeTerms(!agreeTerms)}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
-                  {agreeTerms && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-                <Text style={styles.checkboxLabel}>
-                  Agree with <Text style={styles.linkText}>Terms & Condition</Text>
-                </Text>
-              </TouchableOpacity>
+                  {/* Sign Up / Send OTP Action Button */}
+                  <TouchableOpacity
+                    style={styles.signUpBtn}
+                    onPress={handleSignUp}
+                    activeOpacity={0.9}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <Text style={styles.signUpBtnText}>Continue / Send OTP</Text>
+                    )}
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  {/* OTP Field */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Enter OTP</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="Enter 6-digit OTP"
+                      placeholderTextColor="#94a3b8"
+                      value={otp}
+                      onChangeText={setOtp}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
 
-              {/* Sign Up Action Button */}
-              <TouchableOpacity
-                style={styles.signUpBtn}
-                onPress={handleSignUp}
-                activeOpacity={0.9}
-              >
-                <Text style={styles.signUpBtnText}>Sign Up</Text>
-              </TouchableOpacity>
+                  {/* Verify OTP Button */}
+                  <TouchableOpacity
+                    style={styles.signUpBtn}
+                    onPress={handleVerifyOtp}
+                    activeOpacity={0.9}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <Text style={styles.signUpBtnText}>Verify OTP & Register</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Go back / Edit details */}
+                  <TouchableOpacity
+                    style={{ marginTop: 15, alignItems: 'center' }}
+                    onPress={() => setIsOtpSent(false)}
+                  >
+                    <Text style={{ color: '#2563eb', fontSize: 14 }}>← Edit Details</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
 
             {/* Social Divider */}

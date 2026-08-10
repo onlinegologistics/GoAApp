@@ -14,9 +14,12 @@ import {
   Alert,
   Modal,
   Image,
+  FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import BottomTabNavigation, { BottomTabType } from '../components/BottomTabNavigation';
 import FilterScreen from './FilterScreen';
+import { hotelService } from '../api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const FONT_FAMILY = Platform.select({
@@ -90,32 +93,60 @@ const HOTEL_PROPERTIES: HotelProperty[] = [
   },
 ];
 
+const convertToApiDate = (dateStr: string) => {
+  try {
+    const cleanStr = dateStr.replace(',', '');
+    const parts = cleanStr.split(' ');
+    const day = parseInt(parts[0], 10);
+    const months: { [key: string]: string } = {
+      Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+      Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12'
+    };
+    const month = months[parts[1]];
+    let year = new Date().getFullYear();
+    for (const part of parts) {
+      if (part.length === 4 && !isNaN(parseInt(part, 10))) {
+        year = parseInt(part, 10);
+      }
+    }
+    const dayStr = day < 10 ? `0${day}` : `${day}`;
+    return `${year}-${month}-${dayStr}`;
+  } catch (e) {
+    return dateStr;
+  }
+};
+
 interface HotelListScreenProps {
   onBack?: () => void;
   onChangeSearch?: () => void;
-  onBookHotel?: (hotelName: string) => void;
+  onBookHotel?: (hotelId: string) => void;
+  searchParams?: any;
 }
 
-export default function HotelListScreen({ onBack, onChangeSearch, onBookHotel }: HotelListScreenProps) {
+export default function HotelListScreen({ onBack, onChangeSearch, onBookHotel, searchParams }: HotelListScreenProps) {
   const [activeTab, setActiveTab] = useState<BottomTabType>('Home');
   const [favorites, setFavorites] = useState<{ [key: string]: boolean }>({});
   const [activeFilter, setActiveFilter] = useState<string>('rec');
 
-  // Edit Search State Variables
+  // Live Hotels State
+  const [hotels, setHotels] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [showEditSearchModal, setShowEditSearchModal] = useState<boolean>(false);
-  const [searchCity, setSearchCity] = useState<string>('Mumbai');
-  const [checkInDate, setCheckInDate] = useState<string>('12 Aug, Wed');
-  const [checkOutDate, setCheckOutDate] = useState<string>('15 Aug, Sat');
-  const [roomsCount, setRoomsCount] = useState<number>(1);
-  const [guestsCount, setGuestsCount] = useState<number>(2);
+
+  // Edit Search State Variables
+  const [searchCity, setSearchCity] = useState<string>(searchParams?.city || 'Mumbai');
+  const [checkInDate, setCheckInDate] = useState<string>(searchParams?.checkIn || '12 Aug, Wed');
+  const [checkOutDate, setCheckOutDate] = useState<string>(searchParams?.checkOut || '15 Aug, Sat');
+  const [roomsCount, setRoomsCount] = useState<number>(searchParams?.rooms || 1);
+  const [guestsCount, setGuestsCount] = useState<number>(searchParams?.guests || 2);
 
   // Filter Modal State Variables
   const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
   const [filterCategory, setFilterCategory] = useState<string>('Sort');
   const [selectedSort, setSelectedSort] = useState<string>('popularity');
-  const [selectedPrice, setSelectedPrice] = useState<string>('under-5k');
-  const [selectedRating, setSelectedRating] = useState<string>('4plus');
-  const [selectedStars, setSelectedStars] = useState<string>('4star');
+  const [selectedPrice, setSelectedPrice] = useState<string>('all');
+  const [selectedRating, setSelectedRating] = useState<string>('all');
+  const [selectedStars, setSelectedStars] = useState<string>('all');
 
   // Entrance animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -123,6 +154,34 @@ export default function HotelListScreen({ onBack, onChangeSearch, onBookHotel }:
 
   // Custom slide-down animation value for Edit Search Modal
   const slideDownAnim = useRef(new Animated.Value(-600)).current;
+
+  const shimmerAnim = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    let animation: Animated.CompositeAnimation | null = null;
+    if (loading) {
+      animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmerAnim, {
+            toValue: 0.7,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(shimmerAnim, {
+            toValue: 0.3,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      animation.start();
+    }
+    return () => {
+      if (animation) {
+        animation.stop();
+      }
+    };
+  }, [loading]);
 
   useEffect(() => {
     Animated.parallel([
@@ -139,6 +198,103 @@ export default function HotelListScreen({ onBack, onChangeSearch, onBookHotel }:
       }),
     ]).start();
   }, []);
+
+  useEffect(() => {
+    const fetchLiveHotels = async () => {
+      setLoading(true);
+      try {
+        const queryParams = {
+          destination: searchCity,
+          checkIn: convertToApiDate(checkInDate),
+          checkOut: convertToApiDate(checkOutDate),
+          rooms: roomsCount,
+          guests: guestsCount,
+        };
+        const response = await hotelService.searchHotelsByLocation(queryParams);
+        if (response && Array.isArray(response)) {
+          setHotels(response);
+        } else if (response && Array.isArray(response.data)) {
+          setHotels(response.data);
+        } else if (response && Array.isArray(response.hotels)) {
+          setHotels(response.hotels);
+        } else {
+          setHotels(HOTEL_PROPERTIES);
+        }
+      } catch (err) {
+        console.error('fetchLiveHotels error:', err);
+        setHotels(HOTEL_PROPERTIES);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLiveHotels();
+  }, [searchParams, searchCity, checkInDate, checkOutDate, roomsCount, guestsCount]);
+
+  const filteredHotels = React.useMemo(() => {
+    let list = [...hotels];
+
+    // 1. Filter by Price
+    if (selectedPrice && selectedPrice !== 'all') {
+      list = list.filter((h) => {
+        const price = h.pricePerNight || (h.price ? parseFloat(String(h.price).replace(/[^0-9.]/g, '')) : 1500);
+        if (selectedPrice === 'under-3k') return price < 3000;
+        if (selectedPrice === 'under-5k') return price >= 3000 && price <= 5000;
+        if (selectedPrice === '5k-10k') return price >= 5000 && price <= 10000;
+        if (selectedPrice === 'above-10k') return price > 10000;
+        return true;
+      });
+    }
+
+    // 2. Filter by Customer Rating
+    if (selectedRating && selectedRating !== 'all') {
+      list = list.filter((h) => {
+        const rating = parseFloat(h.rating || h.stars || '4.0');
+        if (selectedRating === '4.5plus') return rating >= 4.5;
+        if (selectedRating === '4plus') return rating >= 4.0;
+        if (selectedRating === '3plus') return rating >= 3.0;
+        return true;
+      });
+    }
+
+    // 3. Filter by Star Rating
+    if (selectedStars && selectedStars !== 'all') {
+      list = list.filter((h) => {
+        const stars = parseInt(h.stars || h.rating || '4');
+        if (selectedStars === '5star') return stars === 5;
+        if (selectedStars === '4star') return stars === 4;
+        if (selectedStars === '3star') return stars === 3;
+        return true;
+      });
+    }
+
+    // 4. Sort
+    if (selectedSort) {
+      if (selectedSort === 'price-low') {
+        list.sort((a, b) => {
+          const priceA = a.pricePerNight || (a.price ? parseFloat(String(a.price).replace(/[^0-9.]/g, '')) : 1500);
+          const priceB = b.pricePerNight || (b.price ? parseFloat(String(b.price).replace(/[^0-9.]/g, '')) : 1500);
+          return priceA - priceB;
+        });
+      } else if (selectedSort === 'rating-high') {
+        list.sort((a, b) => {
+          const ratingA = parseFloat(a.rating || a.stars || '4.0');
+          const ratingB = parseFloat(b.rating || b.stars || '4.0');
+          return ratingB - ratingA;
+        });
+      } else if (selectedSort === 'best-value') {
+        list.sort((a, b) => {
+          const priceA = a.pricePerNight || (a.price ? parseFloat(String(a.price).replace(/[^0-9.]/g, '')) : 1500);
+          const priceB = b.pricePerNight || (b.price ? parseFloat(String(b.price).replace(/[^0-9.]/g, '')) : 1500);
+          const ratingA = parseFloat(a.rating || a.stars || '4.0');
+          const ratingB = parseFloat(b.rating || b.stars || '4.0');
+          return (priceA / (ratingA || 1)) - (priceB / (ratingB || 1));
+        });
+      }
+    }
+
+    return list;
+  }, [hotels, selectedPrice, selectedRating, selectedStars, selectedSort]);
 
   const handleOpenEditSearch = () => {
     setShowEditSearchModal(true);
@@ -163,9 +319,9 @@ export default function HotelListScreen({ onBack, onChangeSearch, onBookHotel }:
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handleSelectHotel = (hotel: HotelProperty) => {
+  const handleSelectHotel = (hotel: any) => {
     if (onBookHotel) {
-      onBookHotel(hotel.name);
+      onBookHotel(hotel.id || hotel._id || '1');
     } else {
       Alert.alert('Hotel Selected 🏨', `Opening profile for ${hotel.name}`);
     }
@@ -210,7 +366,7 @@ export default function HotelListScreen({ onBack, onChangeSearch, onBookHotel }:
 
           {/* Subheader Controls (Stays count & Sort/Filter) */}
           <View style={styles.subheaderRow}>
-            <Text style={styles.staysCountText}>132 stays found</Text>
+            <Text style={styles.staysCountText}>{filteredHotels.length} stays found</Text>
             
             <View style={styles.headerRightControls}>
               <TouchableOpacity 
@@ -233,87 +389,124 @@ export default function HotelListScreen({ onBack, onChangeSearch, onBookHotel }:
         </View>
 
         {/* Hotels Properties Cards List */}
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollListContent}
-        >
-          {HOTEL_PROPERTIES.map((hotel) => {
-            const isFav = !!favorites[hotel.id];
-            return (
-              <TouchableOpacity 
-                key={hotel.id} 
-                style={styles.hotelCard}
-                onPress={() => handleSelectHotel(hotel)}
-                activeOpacity={0.9}
-              >
-                {/* Hotel Banner Image Area */}
-                <View style={styles.imageBannerContainer}>
-                  <Image 
-                    source={{ uri: hotel.imageUrl }} 
-                    style={styles.imageBanner} 
-                    resizeMode="cover"
-                  />
-
-                  {/* Top Left Discount Badge */}
-                  <View style={styles.discountTag}>
-                    <Text style={styles.discountTagText}>{hotel.discount}</Text>
-                  </View>
-
-                  {/* Top Right Star Rating Badge */}
-                  <View style={styles.ratingGroupRow}>
-                    <View style={styles.ratingBadge}>
-                      <Text style={styles.ratingBadgeText}>★ {hotel.rating}</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.heartBtn}
-                      onPress={() => toggleFavorite(hotel.id)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.heartIcon}>{isFav ? '❤️' : '🤍'}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Hotel Details Area */}
+        {loading ? (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollListContent}>
+            {[1, 2, 3].map((i) => (
+              <View key={i} style={styles.hotelCard}>
+                {/* Banner Placeholder */}
+                <Animated.View style={[styles.skeletonListBanner, { opacity: shimmerAnim }]} />
+                
+                {/* Card Body Placeholder */}
                 <View style={styles.cardBody}>
-                  {/* Title */}
-                  <View style={styles.cardTitleRow}>
-                    <Text style={styles.hotelName}>{hotel.name}</Text>
-                    <Text style={styles.hotelLocation}>📍 {hotel.location}</Text>
-                  </View>
-
-                  {/* Amenities Row */}
+                  <Animated.View style={[styles.skeletonListTitle, { opacity: shimmerAnim }]} />
+                  <Animated.View style={[styles.skeletonListLoc, { opacity: shimmerAnim }]} />
+                  
+                  {/* Chips Row Placeholder */}
                   <View style={styles.amenitiesRow}>
-                    {hotel.amenities.map((amenity, idx) => (
-                      <View key={idx} style={styles.amenityChip}>
-                        <Text style={styles.amenityChipText}>{amenity}</Text>
-                      </View>
+                    {[1, 2, 3].map((c) => (
+                      <Animated.View key={c} style={[styles.skeletonListChip, { opacity: shimmerAnim }]} />
                     ))}
                   </View>
 
-                  {/* Footer Price & Book Now Action */}
-                  <View style={styles.cardFooter}>
-                    <View>
-                      <View style={styles.priceRow}>
-                        <Text style={styles.priceText}>{hotel.price}</Text>
-                        <Text style={styles.originalPriceText}>{hotel.originalPrice}</Text>
-                      </View>
-                      <Text style={styles.perNightText}>per night</Text>
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.bookNowBtn}
-                      onPress={() => handleSelectHotel(hotel)}
-                      activeOpacity={0.9}
-                    >
-                      <Text style={styles.bookNowBtnText}>Book Now ›</Text>
-                    </TouchableOpacity>
+                  {/* Footer Placeholder */}
+                  <View style={[styles.cardFooter, { marginTop: 12 }]}>
+                    <Animated.View style={[styles.skeletonListPrice, { opacity: shimmerAnim }]} />
+                    <Animated.View style={[styles.skeletonListBtn, { opacity: shimmerAnim }]} />
                   </View>
                 </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+              </View>
+            ))}
+          </ScrollView>
+        ) : (
+          <FlatList
+            data={filteredHotels}
+            keyExtractor={(item) => item.id || item._id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollListContent}
+            renderItem={({ item: hotel }) => {
+              const isFav = !!favorites[hotel.id || hotel._id];
+              const hotelImage = hotel.image || hotel.imageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=80';
+              const hotelAddress = hotel.address || hotel.location || hotel.city || 'Location';
+              const hotelPrice = hotel.pricePerNight ? `₹${Math.round(hotel.pricePerNight)}` : (hotel.price || '₹1,500');
+              const hotelOriginalPrice = hotel.pricePerNight ? `₹${Math.round(hotel.pricePerNight * 1.25)}` : (hotel.originalPrice || '₹1,875');
+              const hotelDiscount = hotel.discount || 'Special Offer';
+              const hotelRating = hotel.rating || hotel.stars || '4.0';
+
+              return (
+                <TouchableOpacity 
+                  style={styles.hotelCard}
+                  onPress={() => handleSelectHotel(hotel)}
+                  activeOpacity={0.9}
+                >
+                  {/* Hotel Banner Image Area */}
+                  <View style={styles.imageBannerContainer}>
+                    <Image 
+                      source={{ uri: hotelImage }} 
+                      style={styles.imageBanner} 
+                      resizeMode="cover"
+                    />
+
+                    {/* Top Left Discount Badge */}
+                    <View style={styles.discountTag}>
+                      <Text style={styles.discountTagText}>{hotelDiscount}</Text>
+                    </View>
+
+                    {/* Top Right Star Rating Badge */}
+                    <View style={styles.ratingGroupRow}>
+                      <View style={styles.ratingBadge}>
+                        <Text style={styles.ratingBadgeText}>★ {hotelRating}</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.heartBtn}
+                        onPress={() => toggleFavorite(hotel.id || hotel._id)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.heartIcon}>{isFav ? '❤️' : '🤍'}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Hotel Details Area */}
+                  <View style={styles.cardBody}>
+                    {/* Title */}
+                    <View style={styles.cardTitleRow}>
+                      <Text style={styles.hotelName}>{hotel.name}</Text>
+                      <Text style={styles.hotelLocation}>📍 {hotelAddress}</Text>
+                    </View>
+
+                    {/* Amenities Row */}
+                    <View style={styles.amenitiesRow}>
+                      {(hotel.amenities || ['📶 Wi-Fi', '❄ AC', '☕ Breakfast']).map((amenity: string, idx: number) => (
+                        <View key={idx} style={styles.amenityChip}>
+                          <Text style={styles.amenityChipText}>{amenity}</Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* Footer Price & Book Now Action */}
+                    <View style={styles.cardFooter}>
+                      <View>
+                        <View style={styles.priceRow}>
+                          <Text style={styles.priceText}>{hotelPrice}</Text>
+                          <Text style={styles.originalPriceText}>{hotelOriginalPrice}</Text>
+                        </View>
+                        <Text style={styles.perNightText}>per night</Text>
+                      </View>
+
+                      <TouchableOpacity
+                        style={styles.bookNowBtn}
+                        onPress={() => handleSelectHotel(hotel)}
+                        activeOpacity={0.9}
+                      >
+                        <Text style={styles.bookNowBtnText}>Book Now ›</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        )}
 
         {/* Bottom Tab Navigation */}
         <BottomTabNavigation
@@ -831,5 +1024,45 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     fontFamily: FONT_FAMILY,
+  },
+  skeletonListBanner: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#cbd5e1',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  skeletonListTitle: {
+    width: '65%',
+    height: 18,
+    backgroundColor: '#cbd5e1',
+    borderRadius: 4,
+    marginBottom: 8,
+  },
+  skeletonListLoc: {
+    width: '45%',
+    height: 12,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 4,
+    marginBottom: 12,
+  },
+  skeletonListChip: {
+    width: 60,
+    height: 22,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 12,
+    marginRight: 6,
+  },
+  skeletonListPrice: {
+    width: '35%',
+    height: 20,
+    backgroundColor: '#cbd5e1',
+    borderRadius: 4,
+  },
+  skeletonListBtn: {
+    width: 90,
+    height: 35,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 18,
   },
 });
