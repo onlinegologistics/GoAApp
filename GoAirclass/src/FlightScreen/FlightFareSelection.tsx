@@ -10,9 +10,14 @@ import {
   Animated,
   BackHandler,
   Platform,
+  ActivityIndicator,
+  Modal,
+  InteractionManager,
+  Alert,
 } from 'react-native';
+import { flightService } from '../api/flightService';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 const FONT_FAMILY = Platform.select({
   ios: 'Helvetica Neue',
   android: 'sans-serif',
@@ -21,12 +26,14 @@ const FONT_FAMILY = Platform.select({
 
 interface FlightFareSelectionProps {
   onClose: () => void;
-  onContinue?: () => void;
+  onContinue?: (option?: any, sessionId?: string) => void;
+  searchResults?: any;
+  selectedFlight?: any;
 }
 
-interface FareOption {
+export interface FareOption {
   id: string;
-  type: 'RETAIL' | 'CLEARTRIP EXCLUSIVE' | 'SPICE FLEX';
+  type: string;
   price: string;
   originalPrice?: string;
   appliedPromo?: string;
@@ -39,66 +46,269 @@ interface FareOption {
   checkInBaggage: string;
   gradient?: boolean;
   benefitText?: string;
+  cancelRules?: any[];
+  dateChangeRules?: any[];
 }
 
-const FARE_OPTIONS: FareOption[] = [
-  {
-    id: '1',
-    type: 'RETAIL',
-    price: '₹6,183',
-    promoCodeText: '₹578 off with CTFKSBIC',
-    cancellationText: 'Cancellation fee from ₹4899',
-    dateChangeText: 'Date change fee from ₹2999',
-    mealText: 'Paid Meal',
-    seatText: 'Paid Seat',
-    cabinBaggage: '7 kg Cabin, 1 Pc',
-    checkInBaggage: '15 kg Check-in, 1 Pc',
-  },
-  {
-    id: '2',
-    type: 'CLEARTRIP EXCLUSIVE',
-    price: '₹5,972',
-    originalPrice: '₹6,422',
-    appliedPromo: '✓ CTVALUE APPLIED',
-    promoCodeText: '₹601 off with CTFKSBIC',
-    cancellationText: 'Cancellation fee from ₹4899',
-    dateChangeText: 'Date change fee from ₹2999',
-    mealText: 'Paid Meal',
-    seatText: 'Paid Seat',
-    cabinBaggage: '7 kg Cabin, 1 Pc',
-    checkInBaggage: '15 kg Check-in, 1 Pc',
-    gradient: true,
-    benefitText: 'Get benefit worth of ₹239',
-  },
-  {
-    id: '3',
-    type: 'SPICE FLEX',
-    price: '₹6,603',
-    promoCodeText: '₹618 off with CTFKSBIC',
-    cancellationText: 'Cancellation fee from ₹4899',
-    dateChangeText: 'Date change fee from ₹2999',
-    mealText: 'Paid Meal',
-    seatText: 'Paid Seat',
-    cabinBaggage: '7 kg Cabin, 1 Pc',
-    checkInBaggage: '15 kg Check-in, 1 Pc',
-  },
-];
+export default function FlightFareSelection({ onClose, onContinue, searchResults, selectedFlight }: FlightFareSelectionProps) {
+  const [fareOptions, setFareOptions] = useState<FareOption[]>([]);
+  const [selectedOption, setSelectedOption] = useState<FareOption | null>(null);
+  const [searchIntentString, setSearchIntentString] = useState<string>('Select fare');
+  const [loadingBenefits, setLoadingBenefits] = useState<boolean>(false);
+  const [sessionId, setSessionId] = useState<string | undefined>();
+  const [loadingPreview, setLoadingPreview] = useState<boolean>(false);
 
-export default function FlightFareSelection({ onClose, onContinue }: FlightFareSelectionProps) {
-  const [selectedOption, setSelectedOption] = useState<FareOption>(FARE_OPTIONS[0]);
-
-  // Slide Animation Ref
-  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-
-  // Mount Animation (Slide-Up)
   useEffect(() => {
-    Animated.spring(slideAnim, {
-      toValue: 0,
-      tension: 35,
-      friction: 9,
-      useNativeDriver: true,
-    }).start();
-  }, [slideAnim]);
+    // Generate fares based on searchResults and selectedFlight
+    const data = searchResults?.data || {};
+      const faresMap = data.fares || {};
+      const initialBenefitsMap = data.benefits || {};
+      const initialBaggageMap = data.baggageAllowances || {};
+      const initialPenaltiesMap = data.penalties || {};
+      const searchIntentMap = data.searchIntent || {};
+
+      const firstIntent = Object.values(searchIntentMap)[0] as any;
+      if (firstIntent) {
+        setSearchIntentString(`Select fare for ${firstIntent.origin} → ${firstIntent.destination} | ${firstIntent.departDate}`);
+      }
+
+      let fareKeys = Object.keys(faresMap).slice(0, 3); // Fallback to first 3
+
+      // If we have a specific flight ID, try to find fares that match its travel options
+      if (selectedFlight && selectedFlight.id) {
+        const flightId = String(selectedFlight.id);
+        const matching = Object.keys(faresMap).filter(k => {
+          const fare = faresMap[k];
+          let fareFlightId = '';
+          try {
+            fareFlightId = fare.subTravelOptionFare[0].flightFare.map((f: any) => f.flightId).join('__');
+          } catch (e) { }
+          return fareFlightId === flightId;
+        });
+
+        if (matching.length > 0) {
+          fareKeys = matching;
+        }
+      }
+
+      if (fareKeys.length === 0) return;
+
+      const generateFares = (benefitsMap: any, baggageMap: any, penaltiesMap: any, currentFaresMap: any) => {
+        return fareKeys.map((key, index) => {
+          const originalFare = faresMap[key] || {};
+          const newFare = currentFaresMap[key] || {};
+          const fare = { ...originalFare, ...newFare };
+
+          let cabinBag = '7 KG Cabin, 1 Pc';
+          let checkInBag = '15 KG Check-in, 1 Pc';
+
+          try {
+            let bagArr: any[] = [];
+
+            // Try new API format
+            if (fare.subTravelOptionBenefits) {
+              const travelOption = Object.values(fare.subTravelOptionBenefits)[0] as any;
+              const flightBens = travelOption?.benefits?.flightBenefits;
+              if (flightBens) {
+                const firstFlight = Object.values(flightBens)[0] as any;
+                const bagId = firstFlight?.baggageAllowances?.[0]?.baggageAllowanceId;
+                if (bagId) bagArr = baggageMap[bagId] || [];
+              }
+            }
+
+            // Fallback to old format
+            if (bagArr.length === 0 && fare.subTravelOptionFare) {
+              const bagId = fare.subTravelOptionFare[0].flightFare[0].baggageAllowances[0].baggageAllowanceId;
+              if (bagId) bagArr = baggageMap[bagId] || [];
+            }
+
+            const cabinInfo = bagArr.find((b: any) => b.type === 'BAGGAGE_CABIN');
+            const checkinInfo = bagArr.find((b: any) => b.type === 'BAGGAGE_CHECK_IN');
+
+            if (cabinInfo && cabinInfo.allowedBaggages?.length > 0) {
+              cabinBag = `${cabinInfo.allowedBaggages[0].quantity} ${cabinInfo.allowedBaggages[0].unit} Cabin, ${cabinInfo.allowedBaggages[0].piece} Pc`;
+            }
+            if (checkinInfo && checkinInfo.allowedBaggages?.length > 0) {
+              checkInBag = `${checkinInfo.allowedBaggages[0].quantity} ${checkinInfo.allowedBaggages[0].unit} Check-in, ${checkinInfo.allowedBaggages[0].piece} Pc`;
+            }
+          } catch (e) { }
+
+          let seatText = 'Paid Seat';
+          let mealText = 'Paid Meal';
+          let refundText = 'Cancellation fee from ₹4899';
+          let dateChangeText = 'Date change fee from ₹2999';
+
+          let benefitIds: string[] = [];
+          let penaltyIds: string[] = [];
+
+          if (fare.subTravelOptionBenefits) {
+            const travelOption = Object.values(fare.subTravelOptionBenefits)[0] as any;
+            if (travelOption?.benefits) {
+              benefitIds = travelOption.benefits.benefitIds || [];
+              penaltyIds = travelOption.benefits.penaltyIds || [];
+            }
+          } else {
+            benefitIds = fare.benefitIds || [];
+            penaltyIds = fare.penaltyIds || [];
+          }
+
+          benefitIds.forEach((bId: string) => {
+            const b = benefitsMap[bId];
+            if (!b) return;
+
+            if (b.benefitType === 'SEAT') {
+              seatText = b.shortDescription || b.description || 'Free Seat';
+            }
+            if (b.benefitType === 'MEAL') {
+              mealText = b.shortDescription || b.description || 'Free Meal';
+            }
+            if (b.benefitType === 'FARE_RULE') {
+              if (b.description?.includes('REFUND')) refundText = b.description;
+              if (b.description?.includes('AMEND')) dateChangeText = b.description;
+            }
+          });
+
+          let cancelRules: any[] = [];
+          let dateChangeRules: any[] = [];
+
+          penaltyIds.forEach((pId: string) => {
+            const p = penaltiesMap[pId];
+            if (!p) return;
+
+            if (p.penaltyType === 'CANCEL') {
+              cancelRules = p.timeLines || [];
+            }
+            if (p.penaltyType === 'AMEND_SAME_FARE' || p.penaltyType === 'AMEND_HIGHER_FARE') {
+              const prefix = p.penaltyType === 'AMEND_SAME_FARE' ? 'Same Fare' : 'Higher Fare';
+              const mappedLines = (p.timeLines || []).map((tl: any) => ({ ...tl, typePrefix: prefix }));
+              dateChangeRules = [...dateChangeRules, ...mappedLines];
+            }
+
+            try {
+              // Find lowest available charge
+              let amount: number | undefined;
+              for (const timeLine of p.timeLines || []) {
+                const charge = timeLine?.passengerFareRuleCharges?.ADT?.charges?.[0]?.amount;
+                if (charge !== undefined && charge > 0 && (amount === undefined || charge < amount)) {
+                  amount = charge;
+                }
+              }
+              if (amount !== undefined) {
+                if (p.penaltyType === 'CANCEL') refundText = `Cancellation fee from ₹${amount}`;
+                if (p.penaltyType === 'AMEND_SAME_FARE' || p.penaltyType === 'AMEND_HIGHER_FARE') dateChangeText = `Date change fee from ₹${amount}`;
+              }
+            } catch (e) { }
+          });
+
+          const priceVal = fare.pricing?.totalPrice || 0;
+          const price = `₹${priceVal.toLocaleString('en-IN')}`;
+
+          let brandName = fare.fareCategory || 'FARE';
+          try {
+            const apiBrand = fare.subTravelOptionFare[0].flightFare[0].identifiers.brandName;
+            if (apiBrand) brandName = apiBrand;
+          } catch (e) { }
+
+          let promoCodeText = '';
+          if (fare.pricing?.discount && fare.pricing.discount > 0) {
+            promoCodeText = `₹${fare.pricing.discount} off applied`;
+          }
+
+          return {
+            id: key,
+            type: brandName.toUpperCase(),
+            price: price,
+            promoCodeText: promoCodeText,
+            cancellationText: refundText,
+            dateChangeText: dateChangeText,
+            mealText: mealText,
+            seatText: seatText,
+            cabinBaggage: cabinBag,
+            checkInBaggage: checkInBag,
+            gradient: false,
+            benefitText: undefined,
+            cancelRules,
+            dateChangeRules,
+          };
+        });
+      };
+
+      const initialFares = generateFares(initialBenefitsMap, initialBaggageMap, initialPenaltiesMap, faresMap);
+      setFareOptions(initialFares);
+      setSelectedOption(initialFares[0]);
+
+      const fetchBenefits = async () => {
+        const dataId = data.dataId;
+        if (!dataId || fareKeys.length === 0) return;
+
+        try {
+          setLoadingBenefits(true);
+          const searchId = data.searchId || dataId;
+          
+          const response = await flightService.getBulkBenefits({
+            dataId: dataId,
+            fareIds: fareKeys,
+            searchId: searchId
+          });
+
+          // Create session AFTER bulk benefits
+          try {
+            const sessionRes = await flightService.createSession(searchId);
+            const extractedSessionId = sessionRes?.data?.sessionId || sessionRes?.data?.data?.sessionId || sessionRes?.sessionId;
+            if (extractedSessionId) {
+              setSessionId(extractedSessionId);
+            }
+          } catch (e) {
+            console.warn('Failed to create session', e);
+          }
+
+          if (response?.data) {
+            const apiData = response.data.data || response.data;
+            const apiBenefits = apiData.benefits || {};
+            const apiBaggage = apiData.baggageAllowances || {};
+            const apiPenalties = apiData.penalties || {};
+            const apiFares = apiData.fares || {};
+
+            const updatedFares = generateFares(
+              { ...initialBenefitsMap, ...apiBenefits },
+              { ...initialBaggageMap, ...apiBaggage },
+              { ...initialPenaltiesMap, ...apiPenalties },
+              { ...faresMap, ...apiFares }
+            );
+            setFareOptions(updatedFares);
+            setSelectedOption(prev => updatedFares.find(f => f.id === prev?.id) || updatedFares[0]);
+          }
+        } catch (err) {
+          console.error('Error fetching bulk benefits:', err);
+        } finally {
+          setLoadingBenefits(false);
+        }
+      };
+
+      fetchBenefits();
+  }, [searchResults, selectedFlight]);
+
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 60,
+        friction: 10,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, [slideAnim, fadeAnim]);
+
+  const [rulesModalVisible, setRulesModalVisible] = useState(false);
+  const [selectedRulesOption, setSelectedRulesOption] = useState<any>(null);
 
   // Handle Android hardware back button
   useEffect(() => {
@@ -115,38 +325,123 @@ export default function FlightFareSelection({ onClose, onContinue }: FlightFareS
     return () => backHandler.remove();
   }, []);
 
-  // Close Animation (Slide-Down)
   const handleClose = () => {
-    Animated.timing(slideAnim, {
-      toValue: SCREEN_HEIGHT,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: SCREEN_HEIGHT,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
       onClose();
     });
   };
 
-  const handleContinue = () => {
-    if (onContinue) {
-      onContinue();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: SCREEN_HEIGHT,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(() => {
-        onClose();
-      });
+  const handleContinue = async () => {
+    const data = searchResults?.data?.dataId ? searchResults.data : (searchResults?.dataId ? searchResults : (searchResults?.data || {}));
+    const searchId = data.searchId || data.dataId;
+
+    let currentSessionId = sessionId;
+    if (!currentSessionId && searchId) {
+      try {
+        const sRes = await flightService.createSession(searchId);
+        currentSessionId = sRes?.data?.sessionId || sRes?.data?.data?.sessionId || sRes?.sessionId;
+        if (currentSessionId) setSessionId(currentSessionId);
+      } catch (sErr) {
+        console.warn('Fallback session creation failed:', sErr);
+      }
     }
+
+    if (onContinue) {
+      onContinue(selectedOption, currentSessionId);
+    } else {
+      handleClose();
+    }
+  };
+
+  const formatDuration = (ptString: string) => {
+    if (!ptString) return '';
+    let s = ptString.replace('PT', '');
+    if (s === '0S') return '0 Hours';
+    s = s.replace('S', ' Seconds').replace('H', ' Hours');
+    return s;
+  };
+
+  const renderTimelineRow = (timeline: any, index: number) => {
+    const start = formatDuration(timeline.startTime);
+    const end = formatDuration(timeline.endTime);
+    const amount = timeline.passengerFareRuleCharges?.ADT?.charges?.[0]?.amount;
+    let timeStr = `${start} to ${end}`;
+    if (timeline.typePrefix) {
+      timeStr = `${timeline.typePrefix}: ${timeStr}`;
+    }
+    const priceStr = amount !== undefined ? `₹${amount}` : 'N/A';
+
+    return (
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }} key={index}>
+        <Text style={{ fontSize: 12, color: '#475569', fontFamily: FONT_FAMILY }}>{timeStr}</Text>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: '#0f172a', fontFamily: FONT_FAMILY }}>{priceStr}</Text>
+      </View>
+    );
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Rules Modal */}
+      <Modal visible={rulesModalVisible} transparent={true} animationType="fade" onRequestClose={() => setRulesModalVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: 'white', width: '100%', borderRadius: 16, padding: 20, maxHeight: '80%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 16, fontWeight: '800', fontFamily: FONT_FAMILY, color: '#0f172a' }}>Detailed Fare Rules</Text>
+              <TouchableOpacity onPress={() => setRulesModalVisible(false)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
+                <Text style={{ fontSize: 24, color: '#64748b' }}>×</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {selectedRulesOption?.cancelRules?.length > 0 && (
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '800', marginBottom: 8, color: '#ea580c', fontFamily: FONT_FAMILY }}>Cancellation Penalty</Text>
+                  <View style={{ backgroundColor: '#f8fafc', paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#f1f5f9' }}>
+                    {selectedRulesOption.cancelRules.map((t: any, i: number) => renderTimelineRow(t, i))}
+                  </View>
+                </View>
+              )}
+              {selectedRulesOption?.dateChangeRules?.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '800', marginBottom: 8, color: '#ea580c', fontFamily: FONT_FAMILY }}>Date Change Penalty</Text>
+                  <View style={{ backgroundColor: '#f8fafc', paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#f1f5f9' }}>
+                    {selectedRulesOption.dateChangeRules.map((t: any, i: number) => renderTimelineRow(t, i))}
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000000', opacity: Animated.multiply(fadeAnim, 0.5) }]}>
+        <TouchableOpacity 
+          style={StyleSheet.absoluteFill} 
+          activeOpacity={1} 
+          onPress={handleClose} 
+        />
+      </Animated.View>
+
       <Animated.View style={[styles.modalPanel, { transform: [{ translateY: slideAnim }] }]}>
-        
+
         {/* Header with Title and Circle Close Button */}
         <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Select fare for DEL → BOM</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <Text style={styles.headerTitle} numberOfLines={1}>{searchIntentString}</Text>
+            {loadingBenefits && (
+              <ActivityIndicator size="small" color="#E75B49" style={{ marginLeft: 8 }} />
+            )}
+          </View>
           <TouchableOpacity style={styles.closeBtnCircle} onPress={handleClose} activeOpacity={0.8}>
             <Text style={styles.closeBtnText}>✕</Text>
           </TouchableOpacity>
@@ -154,128 +449,142 @@ export default function FlightFareSelection({ onClose, onContinue }: FlightFareS
 
         {/* Scroll options list */}
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {FARE_OPTIONS.map((option) => {
-            const isSelected = selectedOption.id === option.id;
-            return (
-              <TouchableOpacity
-                key={option.id}
-                style={[
-                  styles.optionCard,
-                  isSelected && styles.optionCardSelected,
-                  option.gradient && styles.gradientCard
-                ]}
-                onPress={() => setSelectedOption(option)}
-                activeOpacity={0.9}
-              >
-                {/* Purple cleartrip exclusive badge */}
-                {option.type === 'CLEARTRIP EXCLUSIVE' && (
-                  <View style={styles.exclusiveBadge}>
-                    <Text style={styles.exclusiveBadgeText}>CLEARTRIP EXCLUSIVE</Text>
-                  </View>
-                )}
-
-                <View style={styles.cardHeaderRow}>
-                  {/* Left info */}
-                  <View style={styles.cardHeaderLeft}>
-                    {option.type === 'CLEARTRIP EXCLUSIVE' ? (
-                      <View style={styles.exclusiveTypeTitleRow}>
-                        <Text style={styles.exclusiveSymbol}>💜</Text>
-                        <Text style={styles.exclusiveTypeTitle}>Value Max</Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.optionTypeTitle}>{option.type}</Text>
-                    )}
-                    <View style={styles.priceLineRow}>
-                      <Text style={styles.priceText}>{option.price}</Text>
-                      {option.originalPrice && (
-                        <Text style={styles.originalPriceText}>{option.originalPrice}</Text>
-                      )}
-                    </View>
-                    {option.appliedPromo && (
-                      <Text style={styles.appliedPromoText}>{option.appliedPromo}</Text>
-                    )}
-                    <Text style={styles.promoLabel}>{option.promoCodeText}</Text>
-                  </View>
-
-                  {/* Right Button */}
+          {fareOptions.length === 0 ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#E75B49" />
+            </View>
+          ) : (
+            <>
+              {fareOptions.map((option, index) => {
+                const isSelected = selectedOption?.id === option.id;
+                return (
                   <TouchableOpacity
+                    key={option.id}
                     style={[
-                      styles.selectBtn,
-                      isSelected ? styles.selectBtnActive : styles.selectBtnOutline
+                      styles.optionCard,
+                      isSelected && styles.optionCardSelected,
+                      option.gradient && styles.gradientCard
                     ]}
                     onPress={() => setSelectedOption(option)}
                     activeOpacity={0.8}
                   >
-                    <Text style={[
-                      styles.selectBtnText,
-                      isSelected ? styles.selectBtnTextActive : styles.selectBtnTextOutline
-                    ]}>
-                      {isSelected ? '✓ Selected' : 'Select'}
-                    </Text>
+                    <View style={styles.cardHeaderRow}>
+                      {/* Left info */}
+                      <View style={styles.cardHeaderLeft}>
+                        <Text style={styles.optionTypeTitle}>{option.type}</Text>
+                        <View style={styles.priceLineRow}>
+                          <Text style={styles.priceText}>{option.price}</Text>
+                          {option.originalPrice && (
+                            <Text style={styles.originalPriceText}>{option.originalPrice}</Text>
+                          )}
+                        </View>
+                        {option.appliedPromo && (
+                          <Text style={styles.appliedPromoText}>{option.appliedPromo}</Text>
+                        )}
+                        {!!option.promoCodeText && (
+                          <Text style={styles.promoLabel}>{option.promoCodeText}</Text>
+                        )}
+                      </View>
+
+                      {/* Right Button */}
+                      <TouchableOpacity
+                        style={[
+                          styles.selectBtn,
+                          selectedOption?.id === option.id ? styles.selectBtnActive : styles.selectBtnOutline
+                        ]}
+                        onPress={() => setSelectedOption(option)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[
+                          styles.selectBtnText,
+                          selectedOption?.id === option.id ? styles.selectBtnTextActive : styles.selectBtnTextOutline
+                        ]}>
+                          {selectedOption?.id === option.id ? '✓ Selected' : 'Select'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Grid features info */}
+                    <View style={styles.featuresGrid}>
+                      <View style={styles.featureRow}>
+                        <View style={styles.featureItem}>
+                          <Text style={styles.yellowCircle}>🔸</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                            <Text style={[styles.featureLabel, { flexShrink: 1 }]} numberOfLines={1}>{option.cancellationText}</Text>
+                            {(option.cancelRules?.length ?? 0) > 0 && (
+                              <TouchableOpacity onPress={() => { setSelectedRulesOption(option); setRulesModalVisible(true); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                                <Text style={{ fontSize: 10, color: '#2563eb', marginLeft: 4, fontWeight: '700' }}>View Rules</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+                        <View style={styles.featureItem}>
+                          <Text style={styles.yellowCircle}>🔸</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                            <Text style={[styles.featureLabel, { flexShrink: 1 }]} numberOfLines={1}>{option.dateChangeText}</Text>
+                            {(option.dateChangeRules?.length ?? 0) > 0 && (
+                              <TouchableOpacity onPress={() => { setSelectedRulesOption(option); setRulesModalVisible(true); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                                <Text style={{ fontSize: 10, color: '#2563eb', marginLeft: 4, fontWeight: '700' }}>View Rules</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.featureRow}>
+                        <View style={styles.featureItem}>
+                          <Text style={styles.yellowCircle}>🔸</Text>
+                          <Text style={[styles.featureLabel, { flexShrink: 1 }]} numberOfLines={1}>{option.mealText}</Text>
+                        </View>
+                        <View style={styles.featureItem}>
+                          <Text style={styles.yellowCircle}>🔸</Text>
+                          <Text style={[styles.featureLabel, { flexShrink: 1 }]} numberOfLines={1}>{option.seatText}</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.featureRow}>
+                        <View style={styles.featureItem}>
+                          <Text style={styles.greenCheck}>✓</Text>
+                          <Text style={[styles.featureLabel, { flexShrink: 1 }]} numberOfLines={1}>{option.cabinBaggage}</Text>
+                        </View>
+                        <View style={styles.featureItem}>
+                          <Text style={styles.greenCheck}>✓</Text>
+                          <Text style={[styles.featureLabel, { flexShrink: 1 }]} numberOfLines={1}>{option.checkInBaggage}</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Extra Benefit bottom info for Cleartrip Exclusive card */}
+                    {option.benefitText && (
+                      <View style={styles.benefitContainer}>
+                        <View style={styles.benefitHeaderRow}>
+                          <Text style={styles.greenShield}>🛡️</Text>
+                          <Text style={styles.benefitTitleText}>{option.benefitText}</Text>
+                        </View>
+                        <View style={styles.insurancePill}>
+                          <Text style={styles.insurancePillText}>Travel Insurance</Text>
+                        </View>
+                      </View>
+                    )}
                   </TouchableOpacity>
-                </View>
-
-                {/* Grid features info */}
-                <View style={styles.featuresGrid}>
-                  <View style={styles.featureRow}>
-                    <View style={styles.featureItem}>
-                      <Text style={styles.yellowCircle}>🔸</Text>
-                      <Text style={styles.featureLabel} numberOfLines={1}>{option.cancellationText}</Text>
-                    </View>
-                    <View style={styles.featureItem}>
-                      <Text style={styles.yellowCircle}>🔸</Text>
-                      <Text style={styles.featureLabel} numberOfLines={1}>{option.dateChangeText}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.featureRow}>
-                    <View style={styles.featureItem}>
-                      <Text style={styles.yellowCircle}>🔸</Text>
-                      <Text style={styles.featureLabel}>{option.mealText}</Text>
-                    </View>
-                    <View style={styles.featureItem}>
-                      <Text style={styles.yellowCircle}>🔸</Text>
-                      <Text style={styles.featureLabel}>{option.seatText}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.featureRow}>
-                    <View style={styles.featureItem}>
-                      <Text style={styles.greenCheck}>✓</Text>
-                      <Text style={styles.featureLabel}>{option.cabinBaggage}</Text>
-                    </View>
-                    <View style={styles.featureItem}>
-                      <Text style={styles.greenCheck}>✓</Text>
-                      <Text style={styles.featureLabel}>{option.checkInBaggage}</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Extra Benefit bottom info for Cleartrip Exclusive card */}
-                {option.benefitText && (
-                  <View style={styles.benefitContainer}>
-                    <View style={styles.benefitHeaderRow}>
-                      <Text style={styles.greenShield}>🛡️</Text>
-                      <Text style={styles.benefitTitleText}>{option.benefitText}</Text>
-                    </View>
-                    <View style={styles.insurancePill}>
-                      <Text style={styles.insurancePillText}>Travel Insurance</Text>
-                    </View>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+                );
+              })}
+            </>
+          )}
         </ScrollView>
 
         {/* Sticky bottom checkout bar */}
         <View style={styles.checkoutFooter}>
           <View style={styles.checkoutLeft}>
-            <Text style={styles.checkoutPrice}>{selectedOption.price}</Text>
-            <Text style={styles.checkoutPromo}>{selectedOption.promoCodeText}</Text>
+            <Text style={styles.checkoutPrice}>{selectedOption?.price}</Text>
+            <Text style={styles.checkoutPromo}>{selectedOption?.promoCodeText}</Text>
           </View>
-          <TouchableOpacity style={styles.continueBtn} onPress={handleContinue} activeOpacity={0.9}>
-            <Text style={styles.continueBtnText}>Continue</Text>
+          <TouchableOpacity style={styles.continueBtn} onPress={handleContinue} activeOpacity={0.9} disabled={loadingPreview}>
+            {loadingPreview ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Text style={styles.continueBtnText}>Continue</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -286,16 +595,19 @@ export default function FlightFareSelection({ onClose, onContinue }: FlightFareS
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)', // Dimmed transparent background overlay
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    zIndex: 999,
+    justifyContent: 'flex-end',
+    backgroundColor: 'transparent',
   },
   modalPanel: {
-    flex: 1,
     backgroundColor: '#f6f8fb',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    marginTop: 60, // push down slightly from very top
+    width: '100%',
+    height: '85%',
     overflow: 'hidden',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   headerRow: {
     flexDirection: 'row',

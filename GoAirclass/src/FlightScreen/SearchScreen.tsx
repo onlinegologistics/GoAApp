@@ -11,6 +11,8 @@ import {
   Animated,
   TextInput,
   Platform,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import BottomTabNavigation, { BottomTabType } from '../components/BottomTabNavigation';
 import { flightService } from '../api';
@@ -86,7 +88,7 @@ const BriefcaseIcon = ({ color = '#64748b' }: IconProps) => (
 );
 
 interface SearchScreenProps {
-  onSearch: () => void;
+  onSearch: (results: any) => void;
   onBack?: () => void;
   onSelectHotels?: () => void;
   onSelectProfile?: () => void;
@@ -98,8 +100,155 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
   const [tripType, setTripType] = useState<TripType>('One Way');
 
   // Location Input States
-  const [fromLocation, setFromLocation] = useState<string>('United States of America');
-  const [toLocation, setToLocation] = useState<string>('United Arab Emirates');
+  const [fromLocation, setFromLocation] = useState<string>('');
+  const [toLocation, setToLocation] = useState<string>('');
+
+  // Suggestions states
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [activeSuggestField, setActiveSuggestField] = useState<'from' | 'to' | null>(null);
+
+  // Date selection states
+  const [departDate, setDepartDate] = useState<Date>(new Date());
+  const [returnDate, setReturnDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    return d;
+  });
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [pickingDateType, setPickingDateType] = useState<'depart' | 'return'>('depart');
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const formatDate = (date: Date) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+  };
+
+  const getMonthDaysGrid = (year: number, month: number) => {
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    
+    // Get weekday of 1st day (0 = Sun, 1 = Mon, ..., 6 = Sat)
+    // But our grid starts on Monday (Mon = 0, Tue = 1, ..., Sun = 6)
+    let startOffset = firstDay.getDay() - 1; 
+    if (startOffset < 0) startOffset = 6; // Sunday is 6
+    
+    const grid = [];
+    
+    // Fill offset days
+    for (let i = 0; i < startOffset; i++) {
+      grid.push({ date: null, dayNum: null, isDisabled: true, isWeekend: false });
+    }
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Fill actual month days
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayDate = new Date(year, month, d);
+      const dayOfWeek = dayDate.getDay(); // 0 = Sun, 6 = Sat
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const isDisabled = dayDate < today;
+      
+      grid.push({
+        date: dayDate,
+        dayNum: d,
+        isDisabled,
+        isWeekend
+      });
+    }
+    
+    return grid;
+  };
+
+  const renderCalendarMonth = (year: number, month: number) => {
+    const monthName = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const daysGrid = getMonthDaysGrid(year, month);
+    
+    return (
+      <View style={styles.calendarMonthContainer} key={`${year}-${month}`}>
+        <Text style={styles.calendarMonthHeader}>{monthName}</Text>
+        <View style={styles.calendarGrid}>
+          {daysGrid.map((day, idx) => {
+            if (day.dayNum === null) {
+              return <View key={`empty-${idx}`} style={styles.calendarDayCell} />;
+            }
+            
+            const isSelected = pickingDateType === 'depart'
+              ? day.date?.toDateString() === departDate.toDateString()
+              : day.date?.toDateString() === returnDate.toDateString();
+              
+            return (
+              <TouchableOpacity
+                key={`day-${day.dayNum}`}
+                style={[styles.calendarDayCell, isSelected && styles.calendarDayCellSelected]}
+                disabled={day.isDisabled}
+                onPress={() => {
+                  if (day.date) {
+                    if (pickingDateType === 'depart') {
+                      setDepartDate(day.date);
+                    } else {
+                      setReturnDate(day.date);
+                    }
+                    setShowDatePicker(false);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[
+                  styles.calendarDayText,
+                  day.isWeekend && styles.calendarDayTextWeekend,
+                  day.isDisabled && styles.calendarDayTextDisabled,
+                  isSelected && styles.calendarDayTextSelected
+                ]}>
+                  {day.dayNum}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
+  const fetchSuggestions = async (text: string, field: 'from' | 'to') => {
+    if (field === 'from') {
+      setFromLocation(text);
+    } else {
+      setToLocation(text);
+    }
+
+    // Clean text: keep only letters and spaces (remove parentheses, numbers, etc.)
+    const cleanText = text.replace(/[^a-zA-Z\s]/g, '').trim();
+
+    if (cleanText.length < 2) {
+      setSuggestions([]);
+      setActiveSuggestField(null);
+      return;
+    }
+
+    try {
+      console.log(`[Suggestion Debug] Fetching for "${cleanText}"...`);
+      const resData = await flightService.searchAirports(cleanText);
+      console.log('[Suggestion Debug] resData received:', JSON.stringify(resData));
+      
+      if (resData && resData.success && resData.data) {
+        const airports = Array.isArray(resData.data)
+          ? resData.data
+          : (Array.isArray(resData.data.airportData)
+            ? resData.data.airportData
+            : (Array.isArray(resData.data.airports) ? resData.data.airports : (resData.data.data && Array.isArray(resData.data.data) ? resData.data.data : [])));
+        
+        console.log('[Suggestion Debug] parsed airports:', airports);
+        setSuggestions(airports);
+        setActiveSuggestField(field);
+      } else {
+        console.log('[Suggestion Debug] resData structure invalid or success is false');
+      }
+    } catch (err) {
+      console.log('[Suggestion Debug] Airport search suggest error:', err);
+    }
+  };
 
   // Passenger Count State
   const [adults, setAdults] = useState<number>(1);
@@ -108,17 +257,26 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
   const [showTravelerDropdown, setShowTravelerDropdown] = useState<boolean>(false);
 
   const handleSearchClick = async () => {
+    let results = null;
+    setLoading(true);
     try {
-      await flightService.searchFlights({
+      const year = departDate.getFullYear();
+      const month = String(departDate.getMonth() + 1).padStart(2, '0');
+      const day = String(departDate.getDate()).padStart(2, '0');
+      const formattedDepartDate = `${year}-${month}-${day}`;
+
+      results = await flightService.searchFlights({
         from: fromLocation,
         to: toLocation,
-        departDate: new Date().toISOString(),
+        departDate: formattedDepartDate,
         passengers: { adults, children, infants },
       });
     } catch (e: any) {
       console.log('Flight Search API:', e?.message);
+    } finally {
+      setLoading(false);
     }
-    onSearch();
+    onSearch(results);
   };
 
   const handleTabChange = (tab: BottomTabType) => {
@@ -274,52 +432,172 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
             </View>
 
             {/* Stacked From Field */}
-            <View style={styles.inputBlock}>
-              <View style={styles.planeIconCircle}>
-                <Text style={styles.planeIconGlyph}>🛫</Text>
+            <View style={{ zIndex: 110, position: 'relative' }}>
+              <View style={styles.inputBlock}>
+                <View style={styles.planeIconCircle}>
+                  <Text style={styles.planeIconGlyph}>🛫</Text>
+                </View>
+                <View style={styles.inputTextContainer}>
+                  <Text style={styles.inputLabel}>From</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    value={fromLocation}
+                    onChangeText={(text) => fetchSuggestions(text, 'from')}
+                    placeholder="Enter departure city/country"
+                    placeholderTextColor="#94a3b8"
+                    onFocus={() => {
+                      if (fromLocation.trim().length >= 2) {
+                        fetchSuggestions(fromLocation, 'from');
+                      }
+                    }}
+                  />
+                </View>
               </View>
-              <View style={styles.inputTextContainer}>
-                <Text style={styles.inputLabel}>From</Text>
-                <TextInput
-                  style={styles.inputField}
-                  value={fromLocation}
-                  onChangeText={setFromLocation}
-                  placeholder="Enter departure city/country"
-                  placeholderTextColor="#94a3b8"
-                />
-              </View>
+              {activeSuggestField === 'from' && suggestions.length > 0 && (
+                <View style={styles.suggestionsContainer}>
+                  <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
+                    {suggestions.map((item: any, idx: number) => {
+                      const code = item.airportCode || item.code;
+                      const city = item.airportCity || item.city || '';
+                      const name = item.airportName || item.name || '';
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          style={styles.suggestionItem}
+                          onPress={() => {
+                            setFromLocation(`${city || name} (${code})`);
+                            setSuggestions([]);
+                            setActiveSuggestField(null);
+                          }}
+                        >
+                          <Text style={styles.suggestionCode}>{code}</Text>
+                          <View style={styles.suggestionDetails}>
+                            <Text style={styles.suggestionCity}>{city || name}</Text>
+                            <Text style={styles.suggestionName}>{name}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
             </View>
 
             {/* Stacked To Field */}
-            <View style={styles.inputBlock}>
-              <View style={styles.planeIconCircle}>
-                <Text style={styles.planeIconGlyph}>🛬</Text>
+            <View style={{ zIndex: 100, position: 'relative' }}>
+              <View style={styles.inputBlock}>
+                <View style={styles.planeIconCircle}>
+                  <Text style={styles.planeIconGlyph}>🛬</Text>
+                </View>
+                <View style={styles.inputTextContainer}>
+                  <Text style={styles.inputLabel}>To</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    value={toLocation}
+                    onChangeText={(text) => fetchSuggestions(text, 'to')}
+                    placeholder="Enter destination city/country"
+                    placeholderTextColor="#94a3b8"
+                    onFocus={() => {
+                      if (toLocation.trim().length >= 2) {
+                        fetchSuggestions(toLocation, 'to');
+                      }
+                    }}
+                  />
+                </View>
               </View>
-              <View style={styles.inputTextContainer}>
-                <Text style={styles.inputLabel}>To</Text>
-                <TextInput
-                  style={styles.inputField}
-                  value={toLocation}
-                  onChangeText={setToLocation}
-                  placeholder="Enter destination city/country"
-                  placeholderTextColor="#94a3b8"
-                />
-              </View>
+              {activeSuggestField === 'to' && suggestions.length > 0 && (
+                <View style={styles.suggestionsContainer}>
+                  <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
+                    {suggestions.map((item: any, idx: number) => {
+                      const code = item.airportCode || item.code;
+                      const city = item.airportCity || item.city || '';
+                      const name = item.airportName || item.name || '';
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          style={styles.suggestionItem}
+                          onPress={() => {
+                            setToLocation(`${city || name} (${code})`);
+                            setSuggestions([]);
+                            setActiveSuggestField(null);
+                          }}
+                        >
+                          <Text style={styles.suggestionCode}>{code}</Text>
+                          <View style={styles.suggestionDetails}>
+                            <Text style={styles.suggestionCity}>{city || name}</Text>
+                            <Text style={styles.suggestionName}>{name}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
             </View>
 
             {/* Side by Side Dates */}
             <View style={styles.datesRow}>
-              <View style={[styles.inputBlockHalf, tripType !== 'One Way' && styles.marginRightCell]}>
+              <TouchableOpacity
+                style={[styles.inputBlockHalf, tripType !== 'One Way' && styles.marginRightCell]}
+                onPress={() => {
+                  setPickingDateType('depart');
+                  setShowDatePicker(true);
+                }}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.inputLabel}>Departure</Text>
-                <Text style={styles.dateValue}>10 June 2023</Text>
-              </View>
+                <Text style={styles.dateValue}>{formatDate(departDate)}</Text>
+              </TouchableOpacity>
               {tripType !== 'One Way' && (
-                <View style={styles.inputBlockHalf}>
+                <TouchableOpacity
+                  style={styles.inputBlockHalf}
+                  onPress={() => {
+                    setPickingDateType('return');
+                    setShowDatePicker(true);
+                  }}
+                  activeOpacity={0.7}
+                >
                   <Text style={styles.inputLabel}>Return</Text>
-                  <Text style={styles.dateValue}>12 Jun 2023</Text>
-                </View>
+                  <Text style={styles.dateValue}>{formatDate(returnDate)}</Text>
+                </TouchableOpacity>
               )}
             </View>
+
+            {/* Custom Date Picker Modal */}
+            <Modal
+              visible={showDatePicker}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={() => setShowDatePicker(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.datePickerContainer}>
+                  {/* Modal Header */}
+                  <View style={styles.calendarHeaderRow}>
+                    <Text style={styles.datePickerTitle}>Select Date</Text>
+                    <TouchableOpacity onPress={() => setShowDatePicker(false)} activeOpacity={0.7} style={styles.calendarCloseBtn}>
+                      <Text style={styles.calendarCloseText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Weekday Names row */}
+                  <View style={styles.weekdayRow}>
+                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(w => (
+                      <Text key={w} style={styles.weekdayText}>{w}</Text>
+                    ))}
+                  </View>
+
+                  {/* Scrollable Months List */}
+                  <ScrollView style={styles.calendarMonthsScroll} showsVerticalScrollIndicator={false}>
+                    {renderCalendarMonth(new Date().getFullYear(), new Date().getMonth())}
+                    {renderCalendarMonth(
+                      new Date().getMonth() === 11 ? new Date().getFullYear() + 1 : new Date().getFullYear(),
+                      (new Date().getMonth() + 1) % 12
+                    )}
+                  </ScrollView>
+                </View>
+              </View>
+            </Modal>
 
             {/* Travelers Row (Click to open dropdown) */}
             <TouchableOpacity
@@ -404,8 +682,17 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
             )}
 
             {/* Search Button */}
-            <TouchableOpacity style={styles.searchBtn} onPress={handleSearchClick} activeOpacity={0.9}>
-              <Text style={styles.searchBtnText}>Search</Text>
+            <TouchableOpacity 
+              style={styles.searchBtn} 
+              onPress={handleSearchClick} 
+              activeOpacity={0.9}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.searchBtnText}>Search</Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -1122,5 +1409,139 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '700',
     fontSize: 14,
+  },
+  suggestionsContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginTop: 4,
+    padding: 4,
+    marginBottom: 10,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  suggestionCode: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0052cc',
+    width: 50,
+  },
+  suggestionDetails: {
+    flex: 1,
+  },
+  suggestionCity: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  suggestionName: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  datePickerContainer: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    width: '100%',
+    height: '85%',
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  calendarHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 6,
+  },
+  calendarCloseBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarCloseText: {
+    fontSize: 20,
+    color: '#0f172a',
+    fontWeight: '300',
+  },
+  datePickerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  weekdayRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    paddingBottom: 10,
+    marginBottom: 10,
+  },
+  weekdayText: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94a3b8',
+  },
+  calendarMonthsScroll: {
+    flex: 1,
+  },
+  calendarMonthContainer: {
+    marginBottom: 28,
+  },
+  calendarMonthHeader: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 16,
+    paddingHorizontal: 6,
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarDayCell: {
+    width: `${100 / 7}%`,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+    borderRadius: 24,
+  },
+  calendarDayCellSelected: {
+    backgroundColor: '#0f172a',
+  },
+  calendarDayText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  calendarDayTextWeekend: {
+    color: '#ef4444',
+  },
+  calendarDayTextDisabled: {
+    color: '#cbd5e1',
+  },
+  calendarDayTextSelected: {
+    color: '#ffffff',
   },
 });

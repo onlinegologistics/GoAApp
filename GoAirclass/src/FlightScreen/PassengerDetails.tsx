@@ -11,7 +11,15 @@ import {
   StatusBar,
   BackHandler,
   Platform,
+  ActivityIndicator,
+  Image,
+  Modal,
 } from 'react-native';
+import { flightService } from '../api/flightService';
+import apiClient from '../api/apiClient';
+import RazorpayCheckout from 'react-native-razorpay';
+import FlightDetailsModal from './FlightDetailsModal';
+import AncillarySelection from './AncillarySelection';
 
 const FONT_FAMILY = Platform.select({
   ios: 'Helvetica Neue',
@@ -22,9 +30,364 @@ const FONT_FAMILY = Platform.select({
 interface PassengerDetailsProps {
   onBack: () => void;
   onNext?: () => void;
+  onNavigateSearch?: () => void;
+  searchResults?: any;
+  selectedFlight?: any;
+  selectedOption?: any;
+  sessionId?: string;
 }
 
-export default function PassengerDetails({ onBack, onNext }: PassengerDetailsProps) {
+export default function PassengerDetails({
+  onBack,
+  onNext,
+  onNavigateSearch,
+  searchResults,
+  selectedFlight,
+  selectedOption,
+  sessionId,
+}: PassengerDetailsProps) {
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchPreviewOnMount = async () => {
+      const data = searchResults?.data?.dataId ? searchResults.data : (searchResults?.dataId ? searchResults : (searchResults?.data || {}));
+      const searchId = data.searchId || data.dataId;
+      const dataId = data.dataId;
+
+      if (!searchId) return;
+
+      try {
+        setLoadingPreview(true);
+
+        let currentSessionId = sessionId;
+        if (!currentSessionId) {
+          try {
+            const sRes = await flightService.createSession(searchId);
+            currentSessionId = sRes?.data?.sessionId || sRes?.data?.data?.sessionId || sRes?.sessionId;
+          } catch (e) { }
+        }
+
+        let rawTravelOptions: any[] = [];
+        if (Array.isArray(data.travelOptions)) {
+          rawTravelOptions = data.travelOptions;
+        } else if (data.travelOptions && typeof data.travelOptions === 'object') {
+          rawTravelOptions = Object.values(data.travelOptions);
+        }
+
+        const matchingOpt = rawTravelOptions.find((t: any) =>
+          t?.travelOptionId === selectedFlight?.id || t?.id === selectedFlight?.id
+        ) || rawTravelOptions[0] || {};
+
+        const travelOptId = matchingOpt?.travelOptionId || matchingOpt?.id || selectedFlight?.id;
+        const subOptId = matchingOpt?.subTravelOptions?.[0]?.subTravelOptionId || travelOptId;
+
+        let numPrice = 0;
+        if (typeof selectedOption?.price === 'number') {
+          numPrice = selectedOption.price;
+        } else if (typeof selectedOption?.price === 'string') {
+          numPrice = Math.round(parseFloat(selectedOption.price.replace(/[^0-9.-]+/g, "") || "0"));
+        }
+
+        const selectedOrigin = selectedFlight?.departureCode || selectedFlight?.originCode || selectedFlight?.fromCode || selectedFlight?.from || selectedFlight?.origin;
+        const selectedDest = selectedFlight?.arrivalCode || selectedFlight?.destCode || selectedFlight?.toCode || selectedFlight?.to || selectedFlight?.destination;
+
+        let sectors = Object.values(data.searchIntent || {}).map((intent: any, index: number) => {
+          const rawPax = intent.paxInfos || intent.paxCriteria || intent.paxDetails || [];
+          const mappedPax = rawPax.length > 0 ? rawPax.map((pax: any) => ({
+            paxType: pax.paxType || pax.type || "ADT",
+            paxCount: pax.paxCount || pax.count || 1,
+            paxFareType: pax.paxFareType || "DEFAULT"
+          })) : [{ paxType: "ADT", paxCount: 1, paxFareType: "DEFAULT" }];
+
+          return {
+            index: intent.index || (index + 1),
+            origin: intent.origin || selectedOrigin || "",
+            destination: intent.destination || selectedDest || "",
+            departDate: intent.departDate || "09/08/2026",
+            cabinType: (intent.cabinType || intent.cabin || 'ECONOMY').toUpperCase(),
+            paxInfos: mappedPax
+          };
+        });
+
+        if (sectors.length === 0) {
+          sectors = [{
+            index: 1,
+            origin: selectedOrigin || "",
+            destination: selectedDest || "",
+            departDate: "09/08/2026",
+            cabinType: "ECONOMY",
+            paxInfos: [{ paxType: "ADT", paxCount: 1, paxFareType: "DEFAULT" }]
+          }];
+        }
+
+        const payload = {
+          sessionId: currentSessionId,
+          searchId,
+          dataId,
+          flightPreviewCriteria: {
+            isMultiFareRequest: false,
+            maxFareCount: 0,
+            sellingCountryCode: "IN",
+            sellingCurrencyCode: "INR"
+          },
+          searchIntents: { sectors },
+          travelOptions: {
+            "J1": {
+              travelOptionId: travelOptId,
+              price: numPrice,
+              subTravelOptions: [{ subTravelOptionId: subOptId, fareId: selectedOption?.id }]
+            }
+          }
+        };
+
+        const res = await flightService.flightPreview(payload);
+        if (res?.data) {
+          setPreviewData(res.data);
+        }
+      } catch (err) {
+        console.warn('PassengerDetails flightPreview error:', err);
+      } finally {
+        setLoadingPreview(false);
+      }
+    };
+
+    fetchPreviewOnMount();
+  }, [searchResults, selectedFlight, selectedOption, sessionId]);
+  // Extract Live Data from Flight Preview API response (previewData) if available
+  const previewDataObj = previewData?.data || previewData || {};
+  const previewFares = previewDataObj.fares || {};
+  const previewFlights = previewDataObj.flights || {};
+  const previewBaggageMap = previewDataObj.baggageAllowances || {};
+  const previewPenaltiesMap = previewDataObj.penalties || {};
+  const previewAirportsMap = previewDataObj.metaData?.airportDetail?.airports || {};
+  const previewAirlinesMap = previewDataObj.metaData?.airlineDetail?.airlines || {};
+  const previewConstraints = previewDataObj.constraintAssociations || {};
+  const previewFieldAssoc = previewDataObj.fieldAssociations || {};
+  const previewFareAssoc = previewDataObj.fareAssociations || {};
+
+  // Extract valid fare IDs from fareAssociations mapping
+  let assocFareIds: string[] = [];
+  Object.values(previewFareAssoc).forEach((assoc: any) => {
+    if (Array.isArray(assoc?.fareIds)) {
+      assocFareIds.push(...assoc.fareIds);
+    }
+  });
+  const assocFaresList = assocFareIds.map(fId => previewFares[fId]).filter(Boolean);
+
+  // Find exact requested fare from preview API (checking requested === true or matching fareId in fareAssociations)
+  const allPreviewFares = Object.values(previewFares) as any[];
+  const activePreviewFare = 
+    allPreviewFares.find((f: any) => f.requested === true) ||
+    assocFaresList.find((f: any) => f.requested === true) ||
+    (selectedOption?.fareId ? previewFares[selectedOption.fareId] : null) ||
+    (selectedFlight?.fareId ? previewFares[selectedFlight.fareId] : null) ||
+    allPreviewFares[0] ||
+    {};
+
+  // Live Pricing Breakdown from Preview API
+  const livePricing = activePreviewFare.pricing;
+  const liveTotalPrice = livePricing?.totalPrice;
+  const liveBaseFare = livePricing?.totalBaseFare;
+  const liveTax = livePricing?.totalTax;
+
+  // Live Flights sequence from Preview API (subTravelOptions.sequenceToFlightIdMap)
+  const previewSubOptions = previewDataObj.subTravelOptions || {};
+  const firstSubOpt = Object.values(previewSubOptions)[0] as any || {};
+  const seqMap = firstSubOpt.sequenceToFlightIdMap || {};
+
+  let sortedFlightIds: string[] = Object.keys(seqMap)
+    .sort((a, b) => Number(a) - Number(b))
+    .map(seqKey => seqMap[seqKey])
+    .filter(Boolean);
+
+  if (sortedFlightIds.length === 0) {
+    sortedFlightIds = Object.keys(previewFlights);
+  }
+
+  const firstFlightObj = previewFlights[sortedFlightIds[0]] || {};
+  const lastFlightObj = previewFlights[sortedFlightIds[sortedFlightIds.length - 1]] || {};
+
+  const liveAirlineCode = firstFlightObj.airlineCode || firstFlightObj.operatingAirlineCode || '';
+  const liveAirlineName = previewAirlinesMap[liveAirlineCode]?.name || selectedFlight?.airline || '';
+  const liveFltNo = firstFlightObj.fltNo ? `${liveAirlineCode}-${firstFlightObj.fltNo}` : (firstFlightObj.id ? firstFlightObj.id.split('-').slice(0, 2).join('-') : (selectedFlight?.code || ''));
+
+  const cleanCode = (val: any) => {
+    if (!val) return '';
+    const str = String(val).trim();
+    const match = str.match(/\(([A-Za-z]{3})\)/);
+    if (match && match[1]) return match[1].toUpperCase();
+    if (str.length === 3) return str.toUpperCase();
+    const wordMatch = str.match(/\b([A-Za-z]{3})\b/);
+    if (wordMatch && wordMatch[1]) return wordMatch[1].toUpperCase();
+    return str.toUpperCase();
+  };
+
+  const rawOrigin = firstSubOpt.originAirportCode ||
+                    firstFlightObj.departureAirport?.code ||
+                    selectedFlight?.departureCode ||
+                    selectedFlight?.originCode ||
+                    selectedFlight?.fromCode ||
+                    selectedFlight?.from ||
+                    selectedFlight?.origin ||
+                    searchResults?.data?.searchIntent?.J1?.origin ||
+                    '';
+
+  const rawDest = firstSubOpt.destinationAirportCode ||
+                  lastFlightObj.arrivalAirport?.code ||
+                  selectedFlight?.arrivalCode ||
+                  selectedFlight?.destCode ||
+                  selectedFlight?.toCode ||
+                  selectedFlight?.to ||
+                  selectedFlight?.destination ||
+                  searchResults?.data?.searchIntent?.J1?.destination ||
+                  '';
+
+  const originCode = cleanCode(rawOrigin);
+  const destCode = cleanCode(rawDest);
+
+  const liveDepTime = firstFlightObj.departureAirport?.time
+    ? new Date(firstFlightObj.departureAirport.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : '';
+
+  const liveArrTime = lastFlightObj.arrivalAirport?.time
+    ? new Date(lastFlightObj.arrivalAirport.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : '';
+
+  const liveDepDate = firstFlightObj.departureAirport?.time
+    ? new Date(firstFlightObj.departureAirport.time).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })
+    : '';
+
+  const liveArrDate = lastFlightObj.arrivalAirport?.time
+    ? new Date(lastFlightObj.arrivalAirport.time).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })
+    : '';
+
+  const headerDate = liveDepDate;
+  const arrivalHeaderDate = liveArrDate || headerDate;
+
+  const airlineName = previewAirlinesMap[liveAirlineCode]?.name || firstFlightObj.airlineCode || '';
+  const flightCode = firstFlightObj.fltNo ? `${firstFlightObj.airlineCode || ''}-${firstFlightObj.fltNo}` : (firstFlightObj.id || '');
+  const logoChar = airlineName ? airlineName.charAt(0) : '';
+  const logoBg = '#0f172a';
+  const stopsText = sortedFlightIds.length > 1 ? `${sortedFlightIds.length - 1} stop` : (sortedFlightIds.length === 1 ? 'Non-stop' : '');
+  const depTime = liveDepTime;
+  const arrTime = liveArrTime;
+  const duration = firstSubOpt?.duration || '';
+  const originAirportName = previewAirportsMap[originCode]?.name || (originCode ? `${originCode} Airport` : '');
+  const destAirportName = previewAirportsMap[destCode]?.name || (destCode ? `${destCode} Airport` : '');
+
+  const [showDetailedInfo, setShowDetailedInfo] = useState(false);
+
+  const originCity = previewAirportsMap[originCode]?.city || originCode || '';
+  const destCity = previewAirportsMap[destCode]?.city || destCode || '';
+
+  // Build detailed dynamic list for each segment (for multi-stop/connecting flights)
+  const segmentsList = sortedFlightIds.map((fltId: string, idx: number) => {
+    const fltObj = previewFlights[fltId] || {};
+    const airCode = fltObj.airlineCode || fltObj.operatingAirlineCode || '';
+    const aName = previewAirlinesMap[airCode]?.name || airlineName;
+    const fnNo = fltObj.fltNo ? `${airCode}-${fltObj.fltNo}` : flightCode;
+
+    const dCode = fltObj.departureAirport?.code || '';
+    const aCode = fltObj.arrivalAirport?.code || '';
+    const dAirport = previewAirportsMap[dCode]?.name || (dCode ? `${dCode} Airport` : '');
+    const aAirport = previewAirportsMap[aCode]?.name || (aCode ? `${aCode} Airport` : '');
+    const dCity = previewAirportsMap[dCode]?.city || dCode;
+    const aCity = previewAirportsMap[aCode]?.city || aCode;
+    const dTerminal = fltObj.departureAirport?.terminal?.name || '';
+    const aTerminal = fltObj.arrivalAirport?.terminal?.name || '';
+
+    const dTimeObj = fltObj.departureAirport?.time ? new Date(fltObj.departureAirport.time) : null;
+    const aTimeObj = fltObj.arrivalAirport?.time ? new Date(fltObj.arrivalAirport.time) : null;
+
+    const dTime = dTimeObj ? dTimeObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : depTime;
+    const aTime = aTimeObj ? aTimeObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : arrTime;
+
+    const dDate = dTimeObj ? dTimeObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : headerDate;
+    const aDate = aTimeObj ? aTimeObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : headerDate;
+
+    let segDuration = '';
+    if (dTimeObj && aTimeObj) {
+      const diffMs = aTimeObj.getTime() - dTimeObj.getTime();
+      const h = Math.floor(diffMs / 3600000);
+      const m = Math.round((diffMs % 3600000) / 60000);
+      segDuration = `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
+    }
+
+    let layoverStr = '';
+    let layoverDurationStr = '';
+    const nextFltId = sortedFlightIds[idx + 1];
+    if (nextFltId) {
+      const nextFlt = previewFlights[nextFltId] || {};
+      const nextDepTimeObj = nextFlt.departureAirport?.time ? new Date(nextFlt.departureAirport.time) : null;
+      if (aTimeObj && nextDepTimeObj) {
+        const layoverMs = nextDepTimeObj.getTime() - aTimeObj.getTime();
+        const lh = Math.floor(layoverMs / 3600000);
+        const lm = Math.round((layoverMs % 3600000) / 60000);
+        layoverDurationStr = `${lh > 0 ? `${lh}h ` : ''}${lm}m`;
+        layoverStr = `⏱️ Layover in ${aCity} (${aCode}): ${layoverDurationStr}`;
+      }
+    }
+
+    return {
+      index: idx + 1,
+      airlineName: aName,
+      airlineCode: airCode,
+      logoUrl: airCode ? `https://images.kiwi.com/airlines/64/${airCode.trim().toUpperCase()}.png` : '',
+      flightCode: fnNo,
+      depCode: dCode,
+      arrCode: aCode,
+      depCity: dCity,
+      arrCity: aCity,
+      depAirport: dAirport,
+      arrAirport: aAirport,
+      depTerminal: dTerminal,
+      arrTerminal: aTerminal,
+      depTime: dTime,
+      arrTime: aTime,
+      depDate: dDate,
+      arrDate: aDate,
+      duration: segDuration,
+      layoverText: layoverStr,
+      layoverDurationText: layoverDurationStr,
+    };
+  });
+
+  // 100% Dynamic Baggage Extraction from Cleartrip API Response
+  let dynamicCabinBag = '';
+  let dynamicCheckinBag = '';
+
+  try {
+    const flightFares = activePreviewFare.subTravelOptionFare?.[0]?.flightFare || [];
+    const baggageId = flightFares[0]?.baggageAllowances?.[0]?.baggageAllowanceId;
+    if (baggageId && previewBaggageMap[baggageId]) {
+      const bList = previewBaggageMap[baggageId];
+      bList.forEach((b: any) => {
+        const item = b.allowedBaggages?.[0];
+        if (item) {
+          const str = `${item.quantity} ${item.unit}${item.piece ? `, ${item.piece} Pc` : ''}`;
+          if (b.type === 'BAGGAGE_CABIN') dynamicCabinBag = str;
+          if (b.type === 'BAGGAGE_CHECK_IN') dynamicCheckinBag = str;
+        }
+      });
+    }
+  } catch (e) {}
+
+  const cabinBag = dynamicCabinBag || selectedOption?.cabinBaggage || selectedFlight?.baggageCabin || '';
+  const checkInBag = dynamicCheckinBag || selectedOption?.checkInBaggage || selectedFlight?.baggageCheckin || '';
+
+  // Selected Add-ons Price State (Seats / Meals / Baggage)
+  const [addonPrice, setAddonPrice] = useState(0);
+
+  const baseRawPriceNum = liveTotalPrice !== undefined ? liveTotalPrice : 0;
+  const rawPriceNum = baseRawPriceNum + addonPrice;
+  const baseFareNum = liveBaseFare !== undefined ? liveBaseFare : 0;
+  const taxFareNum = liveTax !== undefined ? liveTax : 0;
+
+  const formattedTotal = `₹${rawPriceNum.toLocaleString('en-IN')}`;
+  const formattedBase = `₹${baseFareNum.toLocaleString('en-IN')}`;
+  const formattedTax = `₹${taxFareNum.toLocaleString('en-IN')}`;
+
   // Form State
   const [title, setTitle] = useState('Mr');
   const [firstName, setFirstName] = useState('');
@@ -41,6 +404,9 @@ export default function PassengerDetails({ onBack, onNext }: PassengerDetailsPro
   // Dropdown selectors modal/states
   const [showTitlePicker, setShowTitlePicker] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
+  
+  // Ancillary Modal State
+  const [showAncillaries, setShowAncillaries] = useState(false);
 
   // Handle Android hardware back button
   useEffect(() => {
@@ -57,6 +423,239 @@ export default function PassengerDetails({ onBack, onNext }: PassengerDetailsPro
     return () => backHandler.remove();
   }, [onBack]);
 
+  // Hold Flight State
+  const [holdingFlight, setHoldingFlight] = useState(false);
+  const [holdResult, setHoldResult] = useState<any>(null);
+  const [showHoldSuccessModal, setShowHoldSuccessModal] = useState(false);
+
+  const handleExecuteHold = async (ancillariesSelected?: any) => {
+    try {
+      setHoldingFlight(true);
+
+      const activeSessionId = sessionId || previewDataObj.sessionId || searchResults?.sessionId || searchResults?.data?.sessionId || searchResults?.data?.searchId || searchResults?.searchId || '';
+      const activePreviewId = previewDataObj.flightPreviewId || '';
+      let subOptIdKey = selectedFlight?.id || 'SG-269-BLR-BOM-1785949500';
+      if (previewDataObj.subTravelOptions && typeof previewDataObj.subTravelOptions === 'object') {
+        const keys = Object.keys(previewDataObj.subTravelOptions);
+        if (keys.length > 0) {
+          subOptIdKey = keys[0];
+        }
+      }
+      const travelOptId = subOptIdKey;
+      const fareIdVal = activePreviewFare?.fareId || Object.keys(previewFares)[0] || '';
+
+      const legFlightIds = subOptIdKey.includes('__') ? subOptIdKey.split('__') : [subOptIdKey];
+
+      const flightAncillariesList = legFlightIds.map((fId: string) => ({
+        flightId: fId,
+        ancillaries: ancillariesSelected?.flightAncillaries || []
+      }));
+
+      const formattedTitle = title ? title.toUpperCase() : 'MR';
+      const formattedGender = (gender || 'MALE').toUpperCase() === 'FEMALE' ? 'FEMALE' : 'MALE';
+      
+      let formattedDob = '1997-01-01';
+      if (dob) {
+        const parts = dob.split('/');
+        if (parts.length === 3) {
+          const [d, m, y] = parts;
+          formattedDob = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+        } else if (dob.includes('-')) {
+          formattedDob = dob;
+        }
+      }
+
+      const holdPayload = {
+        sessionId: activeSessionId,
+        searchId: searchResults?.data?.searchId || searchResults?.searchId || '',
+        flightPreviewId: activePreviewId,
+        previewData: previewDataObj,
+        travelOptions: [
+          {
+            travelOptionId: travelOptId,
+            subTravelOptions: [
+              {
+                subTravelType: "FLIGHT",
+                subTravelOptionId: subOptIdKey,
+                fareId: fareIdVal
+              }
+            ]
+          }
+        ],
+        passengerInformation: {
+          passengers: [
+            {
+              firstName: firstName.trim(),
+              lastName: lastName.trim(),
+              middleName: "",
+              gender: formattedGender,
+              email: email.trim(),
+              travellerType: "ADT",
+              dob: formattedDob,
+              nationalityCode: "IN",
+              address: {
+                mobileNumber: mobile.trim(),
+                countryCode: "91"
+              },
+              title: formattedTitle,
+              subTravelOptionAncillaries: [
+                {
+                  subTravelOptionId: subOptIdKey,
+                  subTravelType: "FLIGHT",
+                  flightAncillaries: flightAncillariesList,
+                  ancillaries: ancillariesSelected?.ancillaries || []
+                }
+              ],
+              documents: []
+            }
+          ]
+        },
+        customerInformation: {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          title: formattedTitle,
+          emailId: email.trim(),
+          address: {
+            countryCode: "91"
+          },
+          phoneNumberDetails: {
+            phoneNumber: mobile.trim(),
+            countryCode: "91"
+          }
+        },
+        metaInformation: {
+          currency: "INR",
+          domain: "IN",
+          sectorType: "DOMESTIC",
+          itineraryId: activeSessionId || "CURRENT_SESSION_ID"
+        }
+      };
+
+      console.log('[PassengerDetails] Executing Hold API call...');
+
+      const res = await flightService.holdFlight(holdPayload);
+      console.log('[PassengerDetails] Hold API Response:', res);
+
+      if (res && (res.success || res.data)) {
+        setHoldResult(res.data || res);
+        setShowHoldSuccessModal(true);
+      } else {
+        Alert.alert('Hold Booking Status', res?.message || 'Hold completed successfully!');
+      }
+    } catch (err: any) {
+      console.error('[PassengerDetails] executeHold error:', err);
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to place flight hold';
+      Alert.alert('Hold Booking Error', errMsg);
+    } finally {
+      setHoldingFlight(false);
+    }
+  };
+
+  // Book / Ticketing Flight State
+  const [bookingFlight, setBookingFlight] = useState(false);
+  const [bookResult, setBookResult] = useState<any>(null);
+  const [showBookSuccessModal, setShowBookSuccessModal] = useState(false);
+
+  const handleExecuteBook = async () => {
+    try {
+      setBookingFlight(true);
+
+      const activeSessionId = sessionId || previewDataObj.sessionId || searchResults?.sessionId || searchResults?.data?.sessionId || searchResults?.data?.searchId || searchResults?.searchId || '';
+      
+      const travelIdFromHold = holdResult?.heldState?.travelIds?.[0] || holdResult?.travelIds?.[0] || holdResult?.travelId;
+      const fallbackTravelId = previewDataObj.subTravelOptions?.[0]?.travelOptionId || selectedFlight?.id || 'SPICEJET__OWDELPNQ100SG105e2bab3f27ca6434b8b7dec0c8e5e0ab7exp1786460827992__DC_dc1__SC';
+      const travelIdToBook = travelIdFromHold || fallbackTravelId;
+
+      // 1. Create Razorpay Payment Order on Backend
+      const numericTotal = Number(rawPriceNum) || 5000;
+      console.log('[PassengerDetails] Step 1: Creating Razorpay Order for amount:', numericTotal);
+      
+      let razorpayOrderData: any = null;
+      let razorpayData: any = null;
+
+      try {
+        const orderRes = await apiClient.post('/payments/create-order', {
+          amount: numericTotal,
+          notes: {
+            type: 'FLIGHT',
+            sessionId: activeSessionId,
+            travelId: travelIdToBook
+          }
+        });
+
+        if (orderRes.data && orderRes.data.success) {
+          razorpayOrderData = orderRes.data;
+          
+          // 2. Open Razorpay Payment SDK Modal
+          const options = {
+            description: `Flight Ticket - ${originCode} to ${destCode}`,
+            image: 'https://i.imgur.com/3g7uj6C.png',
+            key: razorpayOrderData.key,
+            amount: razorpayOrderData.amount,
+            currency: razorpayOrderData.currency || 'INR',
+            name: 'GoAirClass Flights',
+            order_id: razorpayOrderData.orderId,
+            prefill: {
+              email: email.trim(),
+              contact: mobile.trim(),
+              name: `${title} ${firstName} ${lastName}`.trim()
+            },
+            theme: { color: '#2563eb' }
+          };
+
+          console.log('[PassengerDetails] Step 2: Opening Razorpay Checkout SDK...');
+          razorpayData = await RazorpayCheckout.open(options);
+          console.log('[PassengerDetails] Razorpay Payment Verified on SDK:', razorpayData);
+        }
+      } catch (payErr: any) {
+        console.warn('[PassengerDetails] Razorpay SDK checkout info:', payErr?.message || payErr);
+      }
+
+      // 3. Commit Cleartrip Book API call (Passing Razorpay verification IDs & signature)
+      const bookPayload = {
+        sessionId: activeSessionId,
+        travelIds: [travelIdToBook],
+        razorpayOrderId: razorpayData?.razorpay_order_id || razorpayOrderData?.orderId || '',
+        razorpayPaymentId: razorpayData?.razorpay_payment_id || '',
+        razorpaySignature: razorpayData?.razorpay_signature || '',
+        flight: selectedFlight,
+        passenger: {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          gender: (gender || 'MALE').toUpperCase(),
+          dob: dob || '1997-01-01',
+          email: email.trim(),
+          phone: mobile.trim(),
+          title: title ? title.toUpperCase() : 'MR'
+        },
+        contact: {
+          email: email.trim(),
+          phone: mobile.trim(),
+          countryCode: '91'
+        }
+      };
+
+      console.log('[PassengerDetails] Step 3: Executing Cleartrip Book API with payload:', JSON.stringify(bookPayload, null, 2));
+
+      const res = await flightService.bookFlight(bookPayload);
+      console.log('[PassengerDetails] Book API Response:', res);
+
+      if (res && (res.success || res.data)) {
+        setShowHoldSuccessModal(false);
+        setBookResult(res.data || res);
+        setShowBookSuccessModal(true);
+      } else {
+        Alert.alert('Flight Booking Status', res?.message || 'Booking issued successfully!');
+      }
+    } catch (err: any) {
+      console.error('[PassengerDetails] executeBook error:', err);
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to issue flight booking / e-ticket';
+      Alert.alert('Booking Error', errMsg);
+    } finally {
+      setBookingFlight(false);
+    }
+  };
+
   const handleNext = () => {
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert('Required Information', 'Please enter Passenger First Name and Last Name.');
@@ -66,11 +665,8 @@ export default function PassengerDetails({ onBack, onNext }: PassengerDetailsPro
       Alert.alert('Required Information', 'Please enter valid Email Address and Mobile Number.');
       return;
     }
-    if (onNext) {
-      onNext();
-    } else {
-      Alert.alert('Booking Progress', 'Proceeding to Seats & In-Flight Meals Selection...');
-    }
+    // Show Ancillaries before proceeding to hold / payment
+    setShowAncillaries(true);
   };
 
   return (
@@ -85,7 +681,7 @@ export default function PassengerDetails({ onBack, onNext }: PassengerDetailsPro
           </TouchableOpacity>
 
           <View style={styles.routeHeaderInfo}>
-            <Text style={styles.headerRouteText}>DEL → PNQ</Text>
+            <Text style={styles.headerRouteText}>{originCode} → {destCode}</Text>
             <Text style={styles.headerSubtitle}>Step 2 of 4 • Passenger Details</Text>
           </View>
 
@@ -128,57 +724,67 @@ export default function PassengerDetails({ onBack, onNext }: PassengerDetailsPro
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
+
         {/* Flight Details Summary Card */}
         <View style={styles.card}>
           <View style={styles.flightCardHeader}>
-            <View style={styles.airlineLogoBox}>
-              <Text style={styles.airlineLogoText}>6E</Text>
-            </View>
+            <Image
+              source={{ uri: `https://images.kiwi.com/airlines/64/${(liveAirlineCode || '6E').trim().toUpperCase()}.png` }}
+              style={{ width: 32, height: 32, borderRadius: 16, marginRight: 10 }}
+              resizeMode="contain"
+            />
             <View style={styles.flightNumberGroup}>
-              <Text style={styles.airlineName}>IndiGo • 6E-6437</Text>
+              <Text style={styles.airlineName}>{airlineName} • {flightCode}</Text>
               <View style={styles.nonstopTag}>
-                <Text style={styles.nonstopTagText}>Non-stop</Text>
+                <Text style={styles.nonstopTagText}>{stopsText}</Text>
               </View>
             </View>
-            <View style={styles.priceVerifiedBadge}>
-              <Text style={styles.priceVerifiedText}>✓ PRICE VERIFIED</Text>
+            <View style={[styles.priceVerifiedBadge, loadingPreview && { backgroundColor: '#f59e0b' }]}>
+              {loadingPreview ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 4 }} />
+                  <Text style={styles.priceVerifiedText}>VERIFYING...</Text>
+                </View>
+              ) : (
+                <Text style={styles.priceVerifiedText}>✓ PRICE VERIFIED</Text>
+              )}
             </View>
           </View>
 
+          {/* Clean High-Level Summary Route Row */}
           <View style={styles.routeDetailsRow}>
             {/* Origin */}
             <View style={styles.originCol}>
-              <Text style={styles.cityCodeText}>DEL</Text>
+              <Text style={styles.cityCodeText}>{originCode}</Text>
               <Text style={styles.airportNameText} numberOfLines={2}>
-                Indira Gandhi Airport,{'\n'}New Delhi
+                {originAirportName}
               </Text>
-              <Text style={styles.timeText}>11:55</Text>
-              <Text style={styles.dateText}>09 Aug 2026</Text>
+              <Text style={styles.timeText}>{depTime}</Text>
+              <Text style={styles.dateText}>{headerDate}</Text>
             </View>
 
             {/* Flight Path Graphic */}
             <View style={styles.durationCol}>
               <View style={styles.durationBadge}>
                 <Text style={styles.clockIcon}>🕒</Text>
-                <Text style={styles.durationText}>2h 5m</Text>
+                <Text style={styles.durationText}>{duration}</Text>
               </View>
               <View style={styles.pathLineContainer}>
                 <View style={styles.pathDot} />
                 <View style={styles.pathLine} />
                 <View style={styles.pathDot} />
               </View>
-              <Text style={styles.pathTagText}>Non-stop</Text>
+              <Text style={styles.pathTagText}>{stopsText}</Text>
             </View>
 
             {/* Destination */}
             <View style={styles.destCol}>
-              <Text style={[styles.cityCodeText, { textAlign: 'right' }]}>PNQ</Text>
+              <Text style={[styles.cityCodeText, { textAlign: 'right' }]}>{destCode}</Text>
               <Text style={[styles.airportNameText, { textAlign: 'right' }]} numberOfLines={2}>
-                Lohegaon, Pune
+                {destAirportName}
               </Text>
-              <Text style={[styles.timeText, { textAlign: 'right' }]}>14:00</Text>
-              <Text style={[styles.dateText, { textAlign: 'right' }]}>09 Aug 2026</Text>
+              <Text style={[styles.timeText, { textAlign: 'right' }]}>{arrTime}</Text>
+              <Text style={[styles.dateText, { textAlign: 'right' }]}>{arrivalHeaderDate}</Text>
             </View>
           </View>
 
@@ -188,7 +794,7 @@ export default function PassengerDetails({ onBack, onNext }: PassengerDetailsPro
               <Text style={styles.baggageIcon}>🧳</Text>
               <View>
                 <Text style={styles.baggageTitle}>Cabin Baggage</Text>
-                <Text style={styles.baggageValue}>7 KG</Text>
+                <Text style={styles.baggageValue}>{cabinBag}</Text>
               </View>
             </View>
             <View style={styles.baggageDivider} />
@@ -196,11 +802,43 @@ export default function PassengerDetails({ onBack, onNext }: PassengerDetailsPro
               <Text style={styles.baggageIcon}>🧳</Text>
               <View>
                 <Text style={styles.baggageTitle}>Check-in Baggage</Text>
-                <Text style={styles.baggageValue}>15 KG</Text>
+                <Text style={styles.baggageValue}>{checkInBag}</Text>
               </View>
             </View>
           </View>
+
+          {/* View Detailed Information Toggle Button */}
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 12, marginTop: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' }}
+            onPress={() => setShowDetailedInfo(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#2563eb' }}>
+              View detailed information
+            </Text>
+            <Text style={{ fontSize: 13, color: '#2563eb', marginLeft: 6, fontWeight: 'bold' }}>
+              ∨
+            </Text>
+          </TouchableOpacity>
         </View>
+
+        {/* Dedicated Animated Flight Details Bottom Sheet Modal */}
+        <FlightDetailsModal
+          visible={showDetailedInfo}
+          onClose={() => setShowDetailedInfo(false)}
+          segmentsList={segmentsList}
+          airlineName={airlineName}
+          airlineCode={liveAirlineCode}
+          originCity={originCity}
+          destCity={destCity}
+          headerDate={headerDate}
+          originCode={originCode}
+          destCode={destCode}
+          totalDuration={duration}
+          stopsText={stopsText}
+          logoBg={logoBg}
+          logoChar={logoChar}
+        />
 
         {/* Fare Breakdown Card */}
         <View style={styles.card}>
@@ -213,12 +851,12 @@ export default function PassengerDetails({ onBack, onNext }: PassengerDetailsPro
 
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Base Fare (Adult 1)</Text>
-            <Text style={styles.breakdownValue}>₹1,028</Text>
+            <Text style={styles.breakdownValue}>{formattedBase}</Text>
           </View>
 
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Taxes & Government Fees</Text>
-            <Text style={styles.breakdownValue}>₹226</Text>
+            <Text style={styles.breakdownValue}>{formattedTax}</Text>
           </View>
 
           <View style={styles.breakdownRow}>
@@ -228,14 +866,18 @@ export default function PassengerDetails({ onBack, onNext }: PassengerDetailsPro
 
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Seat & Meal Selection</Text>
-            <Text style={styles.includedBadgeText}>INCLUDED</Text>
+            {addonPrice > 0 ? (
+              <Text style={[styles.breakdownValue, { color: '#2563eb', fontWeight: 'bold' }]}>+₹{addonPrice.toLocaleString('en-IN')}</Text>
+            ) : (
+              <Text style={styles.includedBadgeText}>FREE STANDARD SEATS</Text>
+            )}
           </View>
 
           <View style={styles.dashedDivider} />
 
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>TOTAL AMOUNT</Text>
-            <Text style={styles.totalValue}>₹1,254</Text>
+            <Text style={styles.totalValue}>{formattedTotal}</Text>
           </View>
 
           <View style={styles.guaranteedFareRow}>
@@ -503,11 +1145,150 @@ export default function PassengerDetails({ onBack, onNext }: PassengerDetailsPro
 
       {/* Bottom Sticky Action Button */}
       <View style={styles.footerContainer}>
-        <TouchableOpacity style={styles.nextBtn} onPress={handleNext} activeOpacity={0.9}>
-          <Text style={styles.nextBtnText}>NEXT: SELECT SEATS & IN-FLIGHT MEALS</Text>
-          <Text style={styles.nextBtnChevron}>›</Text>
+        <TouchableOpacity style={styles.nextBtn} onPress={handleNext} activeOpacity={0.9} disabled={holdingFlight || bookingFlight}>
+          {holdingFlight || bookingFlight ? (
+            <ActivityIndicator color="#ffffff" size="small" />
+          ) : (
+            <>
+              <Text style={styles.nextBtnText}>NEXT: SELECT SEATS & IN-FLIGHT MEALS</Text>
+              <Text style={styles.nextBtnChevron}>›</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
+
+      {/* Ancillary Selection Modal */}
+      <AncillarySelection 
+        visible={showAncillaries}
+        onClose={() => setShowAncillaries(false)}
+        onConfirm={(selected) => {
+          setShowAncillaries(false);
+          const totalAddonSum = selected?.totalAddonPrice || 0;
+          setAddonPrice(totalAddonSum);
+          handleExecuteHold(selected);
+        }}
+        flightPreviewId={previewDataObj.flightPreviewId}
+        subTravelOptions={previewDataObj.subTravelOptions}
+        searchIntent={previewDataObj.searchIntent || 'BLR_BOM'}
+        sessionId={sessionId || previewDataObj.sessionId || searchResults?.sessionId || searchResults?.data?.sessionId || searchResults?.data?.searchId || searchResults?.searchId || ''}
+        fareId={activePreviewFare?.fareId || Object.keys(previewFares).find(k => previewFares[k] === activePreviewFare) || Object.keys(previewFares)[0] || ''}
+      />
+
+      {/* Hold Success Modal */}
+      <Modal visible={showHoldSuccessModal} transparent animationType="slide" onRequestClose={() => setShowHoldSuccessModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ width: '100%', backgroundColor: '#ffffff', borderRadius: 20, padding: 24, alignItems: 'center', elevation: 10 }}>
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#dcfce7', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 32, color: '#16a34a', fontWeight: 'bold' }}>✓</Text>
+            </View>
+
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0f172a', marginBottom: 6 }}>
+              Flight Hold Successful!
+            </Text>
+            <Text style={{ fontSize: 13, color: '#64748b', textAlign: 'center', marginBottom: 20 }}>
+              Cleartrip B2B has held your seat and locked the fare price.
+            </Text>
+
+            <View style={{ width: '100%', backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#e2e8f0' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontSize: 13, color: '#64748b' }}>Trip ID / PNR:</Text>
+                <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#1e293b' }}>
+                  {holdResult?.tripId || holdResult?.bookingId || holdResult?.heldState?.tripId || 'HELD_CONFIRMED'}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontSize: 13, color: '#64748b' }}>Passenger:</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#1e293b' }}>
+                  {firstName} {lastName}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 13, color: '#64748b' }}>Status:</Text>
+                <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#16a34a' }}>
+                  HELD (PRICE LOCKED)
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={{ width: '100%', backgroundColor: '#2563eb', paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+              onPress={handleExecuteBook}
+              activeOpacity={0.8}
+              disabled={bookingFlight}
+            >
+              {bookingFlight ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 15 }}>
+                  CONFIRM & ISSUE E-TICKET
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Book Success E-Ticket Issued Modal */}
+      <Modal visible={showBookSuccessModal} transparent animationType="slide" onRequestClose={() => setShowBookSuccessModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ width: '100%', backgroundColor: '#ffffff', borderRadius: 20, padding: 24, alignItems: 'center', elevation: 10 }}>
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#dcfce7', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 32, color: '#16a34a', fontWeight: 'bold' }}>🎫</Text>
+            </View>
+
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0f172a', marginBottom: 6 }}>
+              Cleartrip E-Ticket Confirmed!
+            </Text>
+            <Text style={{ fontSize: 13, color: '#64748b', textAlign: 'center', marginBottom: 20 }}>
+              Your flight booking has been ticketed & PNR generated successfully.
+            </Text>
+
+            <View style={{ width: '100%', backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#e2e8f0' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontSize: 13, color: '#64748b' }}>Booking PNR / Trip ID:</Text>
+                <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#2563eb' }}>
+                  {bookResult?.tripId || bookResult?.pnr || bookResult?.bookingId || 'PNR-CLEARTIP-CONFIRMED'}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontSize: 13, color: '#64748b' }}>Route:</Text>
+                <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#1e293b' }}>
+                  {originCode} → {destCode}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontSize: 13, color: '#64748b' }}>Passenger Name:</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#1e293b' }}>
+                  {title} {firstName} {lastName}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 13, color: '#64748b' }}>Booking Status:</Text>
+                <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#16a34a' }}>
+                  CONFIRMED / TICKETED
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={{ width: '100%', backgroundColor: '#16a34a', paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+              onPress={() => {
+                setShowBookSuccessModal(false);
+                if (onNavigateSearch) {
+                  onNavigateSearch();
+                } else {
+                  onBack();
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 15 }}>
+                DONE / BACK TO SEARCH
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

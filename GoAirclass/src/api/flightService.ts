@@ -19,6 +19,11 @@ export const flightService = {
     return response.data;
   },
 
+  login: async () => {
+    const response = await apiClient.post('/flights/login');
+    return response.data;
+  },
+
   searchAirports: async (query: string) => {
     const response = await apiClient.get('/flights/airports/search', {
       params: { query },
@@ -38,6 +43,36 @@ export const flightService = {
 
   getMyBookings: async () => {
     const response = await apiClient.get('/flights/my-bookings');
+    return response.data;
+  },
+
+  getBulkBenefits: async (data: { dataId: string; fareIds: string[]; sessionId?: string; searchId?: string }) => {
+    const response = await apiClient.post('/flights/benefits/bulk', data);
+    return response.data;
+  },
+
+  createSession: async (searchId: string) => {
+    const response = await apiClient.post('/flights/session', { searchId });
+    return response.data;
+  },
+
+  flightPreview: async (data: any) => {
+    const response = await apiClient.post('/flights/preview', data);
+    return response.data;
+  },
+
+  fetchAncillaries: async (data: any) => {
+    const response = await apiClient.post('/flights/fetch-ancillaries', data);
+    return response.data;
+  },
+
+  holdFlight: async (data: any) => {
+    const response = await apiClient.post('/flights/hold', data);
+    return response.data;
+  },
+
+  bookFlight: async (data: any) => {
+    const response = await apiClient.post('/flights/book', data);
     return response.data;
   },
 };

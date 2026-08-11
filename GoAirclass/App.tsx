@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, View, BackHandler } from 'react-native';
+import { ActivityIndicator, View, BackHandler, Modal } from 'react-native';
 import Onboarding from './src/components/Onboarding';
 import SearchScreen from './src/FlightScreen/SearchScreen';
 import FlightList from './src/FlightScreen/FlightList';
@@ -27,6 +27,10 @@ function App() {
   const [selectedRoomData, setSelectedRoomData] = useState<any>(null);
   const [selectedRatePlanData, setSelectedRatePlanData] = useState<any>(null);
   const [previousScreen, setPreviousScreen] = useState<ScreenType>('home');
+  const [flightSearchResults, setFlightSearchResults] = useState<any>(null);
+  const [selectedFlight, setSelectedFlight] = useState<any>(null);
+  const [selectedOption, setSelectedOption] = useState<any>(null);
+  const [sessionId, setSessionId] = useState<string | undefined>();
 
   useEffect(() => {
     const handleBackPress = () => {
@@ -201,26 +205,44 @@ function App() {
     );
   }
 
-  if (currentScreen === 'flightList') {
+  if (currentScreen === 'flightList' || currentScreen === 'fareSelection') {
     return (
-      <FlightList
-        onBack={() => setCurrentScreen('search')}
-        onSelectFlight={() => setCurrentScreen('fareSelection')}
-      />
-    );
-  }
-
-  if (currentScreen === 'fareSelection') {
-    return (
-      <FlightFareSelection
-        onClose={() => setCurrentScreen('flightList')}
-        onContinue={() => setCurrentScreen('passengerDetails')}
-      />
+      <View style={{ flex: 1 }}>
+        <FlightList
+          onBack={() => setCurrentScreen('search')}
+          onSelectFlight={(flight) => {
+            setSelectedFlight(flight);
+            setCurrentScreen('fareSelection');
+          }}
+          searchResults={flightSearchResults}
+        />
+        {currentScreen === 'fareSelection' && (
+          <FlightFareSelection
+            searchResults={flightSearchResults}
+            selectedFlight={selectedFlight}
+            onClose={() => setCurrentScreen('flightList')}
+            onContinue={(opt, sessId) => {
+              if (opt) setSelectedOption(opt);
+              if (sessId) setSessionId(sessId);
+              setCurrentScreen('passengerDetails');
+            }}
+          />
+        )}
+      </View>
     );
   }
 
   if (currentScreen === 'passengerDetails') {
-    return <PassengerDetails onBack={() => setCurrentScreen('fareSelection')} />;
+    return (
+      <PassengerDetails
+        onBack={() => setCurrentScreen('fareSelection')}
+        onNavigateSearch={() => setCurrentScreen('search')}
+        searchResults={flightSearchResults}
+        selectedFlight={selectedFlight}
+        selectedOption={selectedOption}
+        sessionId={sessionId}
+      />
+    );
   }
 
   if (currentScreen === 'profile') {
@@ -237,7 +259,10 @@ function App() {
 
   return (
     <SearchScreen
-      onSearch={() => setCurrentScreen('flightList')}
+      onSearch={(results) => {
+        setFlightSearchResults(results);
+        setCurrentScreen('flightList');
+      }}
       onBack={() => setCurrentScreen('home')}
       onSelectHotels={() => setCurrentScreen('hotelSearch')}
       onSelectProfile={() => {

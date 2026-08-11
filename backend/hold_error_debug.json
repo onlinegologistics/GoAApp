@@ -1,17 +1,22 @@
 {
-  "timestamp": "2026-08-07T19:43:05.036Z",
-  "sessionId": "65273301_ad446975-aec1-4060-84a9-a0583d883c34-260807204033",
-  "searchId": "DC_Search-3fe11056-d411-4b3c-b963-d75000b187f7",
+  "timestamp": "2026-08-11T17:34:11.598Z",
+  "sessionId": "65273301_ccdf5f0f-56aa-432f-9e97-880b92647252-260811183340",
+  "searchId": "DC_Search-6a5a476d-b5f3-48e8-ad3e-056593b16669",
   "payload": {
-    "flightPreviewId": "b7142cd0-9cbc-4189-b49c-50835a0c2e1b",
+    "flightPreviewId": "f1702b9e-8f6e-4570-8353-ed1459eaf539",
     "travelOptions": [
       {
-        "travelOptionId": "6E-5255-BLR-BOM-1786189500",
+        "travelOptionId": "6E-882-DEL-HYD-1786470300__6E-351-HYD-PNQ-1786489500",
         "subTravelOptions": [
           {
             "subTravelType": "FLIGHT",
-            "subTravelOptionId": "6E-5255-BLR-BOM-1786189500",
-            "fareId": "REGULAR__08/08/2026__6E__6E__BLR_BOM__true__RETAIL__E__DOM__OW__UNKNOWN__S050__REGULAR__AVN+Z504CkHSNnSQo+gdEPrbXGQ50EGiwOv+uWEmMk2ZjJLebAK/8AyMgUjxGrrMj0+NoIO8dh1tIlw9kimjd7iv784WG1yY5CNOI/sfRVGc3Luw0k6nokV4VfRbLhdGmHVCC7mymwfDmnjVrMzdbWPsnlwb1rD6cXoUR1NoLxOqHz2pRnzz6E5tg4Jg38TgSNCzzRbUitd+GAo352YO8EzX25D7mGeoMSgUcgP/VPOFlEA24oL2OHtNM+tTRRFT3JWfCUJC86zxBCi3+LwEsGWbQMbsa4g=~~V3"
+            "subTravelOptionId": "6E-882-DEL-HYD-1786470300",
+            "fareId": "FARE_FAMILY__11/08/2026__6E^6E__6E^6E__DEL_PNQ__true__RETAIL__E__DOM__OW__UNKNOWN__S050__INDIGO UPFRONT,INDIGO UPFRONT__AVN+Z51PLuEPIWIScXoUp+SKAMAj3SZsUKB+bOqAPkWpIJJWgSA+PFcfr5I+zUi7vBUF4W6EBdFp0rCDZ91lr4M0RQmk26KVHEfE8mj6A4PR1trC3TVZEVqaZ9QP53fYbfmGBLGB0qMCtWATTFYcy7rnt/7UJfqyyqYURMxo8mcqmstadX1Tw+44MGPg18GB3V7mEvCXnpuiQC8SdjLaZuvc7aKehOnnvsid73vLiBKbAQlgrZQ+hzXgXz2r/xPBBRRrGLRy1f5aMCoUrEuYFZ2Jf2yBxTNKUDrRkX9r24xR7vzn4/k3wkZP3Ek=~~V3"
+          },
+          {
+            "subTravelType": "FLIGHT",
+            "subTravelOptionId": "6E-351-HYD-PNQ-1786489500",
+            "fareId": "FARE_FAMILY__11/08/2026__6E^6E__6E^6E__DEL_PNQ__true__RETAIL__E__DOM__OW__UNKNOWN__S050__INDIGO UPFRONT,INDIGO UPFRONT__AVN+Z51PLuEPIWIScXoUp+SKAMAj3SZsUKB+bOqAPkWpIJJWgSA+PFcfr5I+zUi7vBUF4W6EBdFp0rCDZ91lr4M0RQmk26KVHEfE8mj6A4PR1trC3TVZEVqaZ9QP53fYbfmGBLGB0qMCtWATTFYcy7rnt/7UJfqyyqYURMxo8mcqmstadX1Tw+44MGPg18GB3V7mEvCXnpuiQC8SdjLaZuvc7aKehOnnvsid73vLiBKbAQlgrZQ+hzXgXz2r/xPBBRRrGLRy1f5aMCoUrEuYFZ2Jf2yBxTNKUDrRkX9r24xR7vzn4/k3wkZP3Ek=~~V3"
           }
         ]
       }
@@ -28,17 +33,28 @@
           "dob": "2001-08-07",
           "nationalityCode": "IN",
           "address": {
-            "mobileNumber": "8767605792",
+            "mobileNumber": "9876543210",
             "countryCode": "91"
           },
           "title": "MR",
           "subTravelOptionAncillaries": [
             {
-              "subTravelOptionId": "6E-5255-BLR-BOM-1786189500",
+              "subTravelOptionId": "6E-882-DEL-HYD-1786470300",
               "subTravelType": "FLIGHT",
               "flightAncillaries": [
                 {
-                  "flightId": "6E-5255-BLR-BOM-1786189500",
+                  "flightId": "6E-882-DEL-HYD-1786470300",
+                  "ancillaries": []
+                }
+              ],
+              "ancillaries": []
+            },
+            {
+              "subTravelOptionId": "6E-351-HYD-PNQ-1786489500",
+              "subTravelType": "FLIGHT",
+              "flightAncillaries": [
+                {
+                  "flightId": "6E-351-HYD-PNQ-1786489500",
                   "ancillaries": []
                 }
               ],
@@ -58,7 +74,7 @@
         "countryCode": "91"
       },
       "phoneNumberDetails": {
-        "phoneNumber": "8767605792",
+        "phoneNumber": "9876543210",
         "countryCode": "91"
       }
     },
@@ -66,7 +82,7 @@
       "currency": "INR",
       "domain": "IN",
       "sectorType": "DOMESTIC",
-      "itineraryId": "65273301_ad446975-aec1-4060-84a9-a0583d883c34-260807204033"
+      "itineraryId": "65273301_ccdf5f0f-56aa-432f-9e97-880b92647252-260811183340"
     }
   },
   "error": "Request failed with status code 500",

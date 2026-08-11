@@ -1,5 +1,6 @@
 // Trigger nodemon restart to clear stale Cleartrip cache
 const axios = require('axios');
+const crypto = require('crypto');
 
 // Add an axios request interceptor to automatically inject headers for all Cleartrip B2B requests
 axios.interceptors.request.use((config) => {
@@ -180,6 +181,112 @@ exports.loginFlight = async (req, res) => {
 };
 
 /**
+ * Helper to convert frontend simple search parameters to Cleartrip search payload format.
+ */
+function convertToCleartripSearchPayload(body) {
+    if (body.searchCriteria && body.searchIntents) {
+        return body;
+    }
+
+    const extractIataCode = (val) => {
+        if (!val) return '';
+        const str = String(val).trim();
+
+        // 1. Extract 3-letter code inside parentheses e.g. "Nagpur (NAG)" -> "NAG"
+        const parenMatch = str.match(/\(([A-Za-z]{3})\)/);
+        if (parenMatch && parenMatch[1]) {
+            return parenMatch[1].toUpperCase();
+        }
+
+        // 2. Exact 3-letter IATA code e.g. "NAG", "ISK"
+        if (str.length === 3) return str.toUpperCase();
+
+        // 3. Standalone 3-letter word
+        const wordMatch = str.match(/\b([A-Za-z]{3})\b/);
+        if (wordMatch && wordMatch[1]) return wordMatch[1].toUpperCase();
+
+        return str.toUpperCase();
+    };
+
+    const origin = extractIataCode(body.from || body.origin);
+    const destination = extractIataCode(body.to || body.destination);
+
+    let departDateStr = '09/08/2026';
+    if (body.departDate) {
+        try {
+            const rawStr = String(body.departDate).trim();
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(rawStr)) {
+                departDateStr = rawStr;
+            } else if (/^\d{4}-\d{2}-\d{2}/.test(rawStr)) {
+                const parts = rawStr.split('T')[0].split('-');
+                departDateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            } else {
+                const date = new Date(body.departDate);
+                if (!isNaN(date.getTime())) {
+                    const day = String(date.getUTCDate()).padStart(2, '0');
+                    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+                    const year = date.getUTCFullYear();
+                    departDateStr = `${day}/${month}/${year}`;
+                }
+            }
+        } catch (e) {
+            console.warn('[Search Payload Builder] Failed to parse departDate:', body.departDate);
+        }
+    }
+
+    const adults = body.passengers?.adults || body.adults || 1;
+    const children = body.passengers?.children || body.children || 0;
+    const infants = body.passengers?.infants || body.infants || 0;
+
+    const paxInfos = [];
+    if (adults > 0) {
+        paxInfos.push({
+            paxType: 'ADT',
+            paxCount: adults,
+            paxFareType: 'DEFAULT'
+        });
+    }
+    if (children > 0) {
+        paxInfos.push({
+            paxType: 'CHD',
+            paxCount: children,
+            paxFareType: 'DEFAULT'
+        });
+    }
+    if (infants > 0) {
+        paxInfos.push({
+            paxType: 'INF',
+            paxCount: infants,
+            paxFareType: 'DEFAULT'
+        });
+    }
+
+    return {
+        searchCriteria: {
+            sellingCountryCode: 'IN',
+            sellingCurrencyCode: 'INR',
+            maxRequiredFlightOptions: 10,
+            fareLimitingStrategyList: ['PRICE'],
+            flightOptionFilter: [],
+            responseVersion: 'VERSION_V6',
+            fareTypes: ['RETAIL']
+        },
+        searchIntents: {
+            sectors: [
+                {
+                    index: 1,
+                    origin: origin,
+                    destination: destination,
+                    departDate: departDateStr,
+                    cabinType: (body.cabinClass || body.cabinType || 'ECONOMY').toUpperCase(),
+                    paxInfos: paxInfos
+                }
+            ]
+        }
+    };
+}
+
+/**
  * Search Flights from Cleartrip B2B API
  * POST /api/flights/search
  */
@@ -191,9 +298,10 @@ exports.searchFlights = async (req, res) => {
         // Obtain valid token
         const token = await getCleartripToken();
 
-        // 2. Perform Flight Search
-        const searchPayload = req.body;
+        // 2. Perform Flight Search (convert simple parameters if needed)
+        const searchPayload = convertToCleartripSearchPayload(req.body);
         console.log(`[Flight Search] Originating Cleartrip request to ${baseUrl}/search`);
+        console.log(`[Flight Search] Payload:`, JSON.stringify(searchPayload, null, 2));
 
         const searchResponse = await axios.post(`${baseUrl}/search`, searchPayload, {
             headers: {
@@ -232,11 +340,11 @@ exports.searchFlights = async (req, res) => {
  */
 exports.searchAirports = async (req, res) => {
     try {
-        const { name } = req.query;
+        const name = req.query.name || req.query.query || req.query.q;
         if (!name) {
             return res.status(400).json({
                 success: false,
-                message: 'Query parameter "name" is required'
+                message: 'Query parameter "name" or "query" is required'
             });
         }
 
@@ -419,6 +527,14 @@ exports.createSession = async (req, res) => {
  */
 exports.flightPreview = async (req, res) => {
     try {
+        const fs = require('fs');
+        const path = require('path');
+        fs.writeFileSync(
+            path.join(__dirname, '../../last_preview_req.json'),
+            JSON.stringify(req.body, null, 2)
+        );
+    } catch(e) {}
+    try {
         const { sessionId, ...previewPayload } = req.body;
 
         if (!sessionId) {
@@ -438,6 +554,7 @@ exports.flightPreview = async (req, res) => {
         const url = `${domain}/air/api/v4/flight-preview`;
 
         console.log(`[Flight Preview] Calling Cleartrip Flight Preview API with sessionId: ${sessionId}`);
+        console.log(`[Flight Preview Payload]:`, JSON.stringify(previewPayload, null, 2));
 
         const previewResponse = await axios.post(url, previewPayload, {
             headers: {
@@ -456,6 +573,18 @@ exports.flightPreview = async (req, res) => {
 
     } catch (error) {
         console.error('Cleartrip Flight Preview Error:', error.response ? error.response.data : error.message);
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            fs.writeFileSync(
+                path.join(__dirname, '../../preview_error_debug.json'),
+                JSON.stringify({
+                    requestPayload: previewPayload,
+                    sessionId: sessionId,
+                    cleartripError: error.response ? error.response.data : error.message
+                }, null, 2)
+            );
+        } catch(e) {}
         const rawErrorData = error.response ? error.response.data : null;
         let errorMsg = 'Failed to execute flight preview from Cleartrip API';
         if (rawErrorData) {
@@ -572,51 +701,8 @@ exports.holdFlight = async (req, res) => {
         console.log('[Flight Hold] Step 1: Getting token...');
         const token = await getCleartripToken();
 
-        let activeSessionId = originalSessionId;
-        let activePreviewId = holdPayload.flightPreviewId;
-
-        // If we have searchId and previewData, auto-refresh session + preview
-        // to avoid stale session errors (531 "Hold failed")
-        if (searchId && previewData) {
-            console.log('[Flight Hold] Step 2: Creating FRESH session for searchId:', searchId);
-            try {
-                const sessionResponse = await axios.post(`${domain}/air/api/v4/session`, { searchId }, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CT-API-KEY': apiKey,
-                        'Authorization': `Bearer ${token}`
-                    },
-                    timeout: 15000
-                });
-                activeSessionId = sessionResponse.data.sessionId;
-                console.log('[Flight Hold] Fresh sessionId:', activeSessionId);
-            } catch (sessErr) {
-                console.warn('[Flight Hold] Fresh session creation failed, using original sessionId:', sessErr.response?.data || sessErr.message);
-                // Keep using the original sessionId
-            }
-
-            console.log('[Flight Hold] Step 3: Running FRESH flight-preview...');
-            try {
-                const previewResponse = await axios.post(`${domain}/air/api/v4/flight-preview`, previewData, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'x-ct-session-id': activeSessionId,
-                        'X-CT-API-KEY': apiKey,
-                        'Authorization': `Bearer ${token}`
-                    },
-                    timeout: 15000
-                });
-                activePreviewId = previewResponse.data.flightPreviewId || activePreviewId;
-                console.log('[Flight Hold] Fresh flightPreviewId:', activePreviewId);
-            } catch (prevErr) {
-                console.warn('[Flight Hold] Fresh preview failed, using original previewId:', prevErr.response?.data || prevErr.message);
-                // Keep using the original preview ID
-            }
-        } else {
-            console.log('[Flight Hold] No searchId/previewData provided, using original session/preview IDs');
-        }
+        const activeSessionId = originalSessionId || req.headers['x-ct-session-id'];
+        const activePreviewId = holdPayload.flightPreviewId;
 
         if (!activeSessionId) {
             return res.status(400).json({
@@ -624,8 +710,14 @@ exports.holdFlight = async (req, res) => {
                 message: 'sessionId is required to hold flight booking'
             });
         }
+        if (!activePreviewId) {
+            return res.status(400).json({
+                success: false,
+                message: 'flightPreviewId is required to hold flight booking'
+            });
+        }
 
-        // Update holdPayload with fresh previewId
+        // Update holdPayload with activePreviewId
         holdPayload.flightPreviewId = activePreviewId;
 
         const url = `${domain}/air/api/v4/hold`;
@@ -700,13 +792,31 @@ exports.holdFlight = async (req, res) => {
  */
 exports.bookFlight = async (req, res) => {
     try {
-        const { sessionId, travelIds, travelId, passenger, passengers, contact, flight, holdData, total, ...bookPayload } = req.body;
+        const { sessionId, travelIds, travelId, passenger, passengers, contact, flight, holdData, total, razorpayOrderId, razorpayPaymentId, razorpaySignature, ...bookPayload } = req.body;
 
         if (!sessionId) {
             return res.status(400).json({
                 success: false,
                 message: 'sessionId is required to commit flight booking'
             });
+        }
+
+        // Razorpay Payment Signature Verification
+        if (razorpayOrderId && razorpayPaymentId && razorpaySignature && process.env.RAZORPAY_KEY_SECRET) {
+            const body = razorpayOrderId + '|' + razorpayPaymentId;
+            const expectedSignature = crypto
+                .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+                .update(body)
+                .digest('hex');
+
+            if (expectedSignature !== razorpaySignature) {
+                console.error('[Flight Book] Razorpay Payment Signature Verification Failed!');
+                return res.status(400).json({
+                    success: false,
+                    message: 'Payment verification failed. Invalid Razorpay signature.'
+                });
+            }
+            console.log('[Flight Book] Razorpay Payment Signature Verified Successfully!');
         }
 
         const baseUrl = process.env.CLEARTRIP_FLIGHT_BASE_URL;
@@ -783,11 +893,6 @@ exports.bookFlight = async (req, res) => {
 
         const payloadToSend = {
             travelIds: idsArray,
-            passengerInformation: {
-                passengers: cleartripPassengers
-            },
-            customerInformation,
-            metaInformation,
             ...bookPayload
         };
 
@@ -841,9 +946,37 @@ exports.bookFlight = async (req, res) => {
                 });
             }
 
+            const targetTripId = response.data.tripId || holdData?.tripId || `Q${Date.now()}`;
+            let ctData = null;
+            if (targetTripId && !targetTripId.startsWith('Q')) {
+                try {
+                    const baseUrl = process.env.CLEARTRIP_FLIGHT_BASE_URL;
+                    const apiKey = process.env.CLEARTRIP_FLIGHT_API_KEY;
+                    const token = await getCleartripToken();
+                    const domain = baseUrl ? baseUrl.replace('/air/api/v4', '').replace('/air/api/v5', '').replace('/air/api/v6', '') : 'https://qa-air-b2b.cleartrip.com';
+                    const viewUrl = `${domain}/air/api/v3/trips/json/view/${targetTripId}`;
+
+                    console.log(`[Flight Book Success] Fetching Cleartrip View details immediately for: ${targetTripId}`);
+                    const ctResponse = await axios.get(viewUrl, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CT-API-KEY': apiKey,
+                            'Authorization': `Bearer ${token}`
+                        },
+                        timeout: 10000
+                    });
+                    if (ctResponse.data) {
+                        ctData = ctResponse.data;
+                        console.log('[Flight Book Success] Successfully fetched cleartripData details.');
+                    }
+                } catch (viewErr) {
+                    console.error('[Flight Book Success] Failed to fetch Cleartrip View details immediately:', viewErr.message);
+                }
+            }
+
             const newBooking = new FlightBooking({
                 userId: req.user?.id || req.user?._id || null,
-                tripId: response.data.tripId || holdData?.tripId || `Q${Date.now()}`,
+                tripId: targetTripId,
                 pnr: response.data.tripId || holdData?.tripId || `PNR-${Math.floor(100000 + Math.random() * 900000)}`,
                 flightDetails: {
                     airline: departureSeg.airlineName || flight?.airlineName || 'Airline',
@@ -872,7 +1005,8 @@ exports.bookFlight = async (req, res) => {
                 bookingStatus: 'CONFIRMED',
                 paymentStatus: 'PAID',
                 ticketStatus: 'CONFIRMED',
-                bookingSource: 'WEB'
+                bookingSource: 'WEB',
+                cleartripData: ctData
             });
 
             await newBooking.save();
@@ -1228,19 +1362,57 @@ exports.getUserFlightBookings = async (req, res) => {
             });
         }
 
+        const query = {
+            $or: [
+                { userId },
+                ...(req.user?.email ? [{ "contactDetails.email": req.user.email }] : [])
+            ]
+        };
+
         const page = req.query.page ? parseInt(req.query.page) : 1;
-        const limit = req.query.limit ? parseInt(req.query.limit) : 3;
+        const limit = req.query.limit ? parseInt(req.query.limit) : 100;
 
-        const total = await FlightBooking.countDocuments({ userId });
+        const total = await FlightBooking.countDocuments(query);
 
-        const bookings = await FlightBooking.find({ userId })
+        const bookings = await FlightBooking.find(query)
             .sort({ createdAt: -1 })
             .skip((page - 1) * limit)
             .limit(limit);
 
+        const liveBookings = await Promise.all(
+            bookings.map(async (b) => {
+                try {
+                    const baseUrl = process.env.CLEARTRIP_FLIGHT_BASE_URL;
+                    const apiKey = process.env.CLEARTRIP_FLIGHT_API_KEY;
+                    const token = await getCleartripToken();
+                    const domain = baseUrl ? baseUrl.replace('/air/api/v4', '').replace('/air/api/v5', '').replace('/air/api/v6', '') : 'https://qa-air-b2b.cleartrip.com';
+                    const url = `${domain}/air/api/v3/trips/json/view/${b.tripId}`;
+
+                    const ctResponse = await axios.get(url, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CT-API-KEY': apiKey,
+                            'Authorization': `Bearer ${token}`
+                        },
+                        timeout: 5000
+                    });
+
+                    if (ctResponse.data) {
+                        return {
+                            ...b.toObject(),
+                            cleartripData: ctResponse.data
+                        };
+                    }
+                } catch (err) {
+                    console.error(`[getUserFlightBookings] Cleartrip view failed for ${b.tripId}:`, err.message);
+                }
+                return b.toObject();
+            })
+        );
+
         res.status(200).json({
             success: true,
-            bookings,
+            bookings: liveBookings,
             total,
             currentPage: page,
             totalPages: Math.ceil(total / limit)

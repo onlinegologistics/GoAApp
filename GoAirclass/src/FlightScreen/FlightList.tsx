@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -9,11 +9,17 @@ import {
   Animated,
   BackHandler,
   Platform,
+  Modal,
+  PanResponder,
+  Dimensions,
 } from 'react-native';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface FlightListProps {
   onBack: () => void;
-  onSelectFlight: () => void;
+  onSelectFlight: (selectedFlight?: any) => void;
+  searchResults?: any;
 }
 
 interface FlightListing {
@@ -25,65 +31,21 @@ interface FlightListing {
   duration: string;
   stops: string;
   price: string;
-  promoCodeText: string;
   logoBg: string;
   logoChar: string;
+  fareType: string;
+  refundableText: string;
+  baggageCabin: string;
+  baggageCheckin: string;
+  seatsLeft: number;
+  rawPrice?: number;
+  stopCount?: number;
+  depHour?: number;
+  arrHour?: number;
+  isRefundableBoolean?: boolean;
 }
 
-const FLIGHT_LISTINGS: FlightListing[] = [
-  {
-    id: '1',
-    airline: 'Akasa Air',
-    code: 'QP-1940',
-    depTime: '14:10',
-    arrTime: '16:20',
-    duration: '02h 10m',
-    stops: 'Non stop',
-    price: '₹6,040',
-    promoCodeText: '₹565 off with CTFKSBIC',
-    logoBg: '#ff6600',
-    logoChar: 'A',
-  },
-  {
-    id: '2',
-    airline: 'IndiGo',
-    code: '6E-5198',
-    depTime: '14:35',
-    arrTime: '16:45',
-    duration: '02h 10m',
-    stops: 'Non stop',
-    price: '₹6,040',
-    promoCodeText: '₹565 off with CTFKSBIC',
-    logoBg: '#0b2e66',
-    logoChar: 'I',
-  },
-  {
-    id: '3',
-    airline: 'Akasa Air',
-    code: 'QP-1942',
-    depTime: '21:05',
-    arrTime: '23:20',
-    duration: '02h 15m',
-    stops: 'Non stop',
-    price: '₹6,040',
-    promoCodeText: '₹565 off with CTFKSBIC',
-    logoBg: '#ff6600',
-    logoChar: 'A',
-  },
-  {
-    id: '4',
-    airline: 'Air India Express',
-    code: 'IX-1395',
-    depTime: '19:15',
-    arrTime: '21:40',
-    duration: '02h 25m',
-    stops: 'Non stop',
-    price: '₹6,140',
-    promoCodeText: '₹574 off with CTFKSBIC',
-    logoBg: '#e11d48',
-    logoChar: 'IX',
-  },
-];
+
 
 const PencilIcon = () => (
   <View style={styles.pencilWrapper}>
@@ -116,6 +78,79 @@ const CalendarIcon = () => (
   </View>
 );
 
+// Filter UI Components
+const Checkbox = ({ label, checked, onChange }: any) => (
+  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 8 }} onPress={() => onChange(!checked)} activeOpacity={0.7}>
+    <View style={{ width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: checked ? '#b48348' : '#cbd5e1', backgroundColor: checked ? '#b48348' : 'transparent', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+      {checked && <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>✓</Text>}
+    </View>
+    <Text style={{ fontSize: 14, color: '#334155', fontFamily: FONT_FAMILY }}>{label}</Text>
+  </TouchableOpacity>
+);
+
+const Radio = ({ label, selected, onPress }: any) => (
+  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 8 }} onPress={onPress} activeOpacity={0.7}>
+    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: selected ? '#b48348' : '#cbd5e1', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+      {selected && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#b48348' }} />}
+    </View>
+    <Text style={{ fontSize: 14, color: '#334155', fontFamily: FONT_FAMILY }}>{label}</Text>
+  </TouchableOpacity>
+);
+
+const SimpleSlider = ({ min, max, value, onValueChange, formatLabel }: any) => {
+  const [width, setWidth] = useState(1);
+  const startVal = useRef(value);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        startVal.current = value;
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        let diff = (gestureState.dx / width) * (max - min);
+        let newVal = startVal.current + diff;
+        newVal = Math.max(min, Math.min(max, newVal));
+        onValueChange(Math.round(newVal));
+      },
+    })
+  ).current;
+
+  const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+
+  return (
+    <View style={{ marginVertical: 10, paddingHorizontal: 10 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+        <Text style={{ fontSize: 12, color: '#64748b', fontWeight: '500', fontFamily: FONT_FAMILY }}>{formatLabel ? formatLabel(min) : min}</Text>
+        <Text style={{ fontSize: 12, color: '#b48348', fontWeight: '700', fontFamily: FONT_FAMILY }}>{formatLabel ? formatLabel(value) : value}</Text>
+      </View>
+      <View 
+        style={{ height: 6, backgroundColor: '#e2e8f0', borderRadius: 3, justifyContent: 'center' }}
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width || 1)}
+      >
+        <View style={{ position: 'absolute', height: '100%', backgroundColor: '#b48348', borderRadius: 3, width: `${pct}%` }} />
+        <View 
+          {...panResponder.panHandlers}
+          style={{
+            position: 'absolute',
+            left: `${pct}%`,
+            marginLeft: -10,
+            width: 20,
+            height: 20,
+            borderRadius: 10,
+            backgroundColor: '#b48348',
+            elevation: 3,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.2,
+            shadowRadius: 2,
+          }}
+        />
+      </View>
+    </View>
+  );
+};
+
 interface DateChip {
   day: string;
   date: string;
@@ -130,9 +165,273 @@ const DATE_CHIPS: DateChip[] = [
   { day: 'Mon', date: '10 Aug', price: '₹6,079', isCheap: true },
 ];
 
-export default function FlightList({ onBack, onSelectFlight }: FlightListProps) {
+export default function FlightList({ onBack, onSelectFlight, searchResults }: FlightListProps) {
   const [selectedDate, setSelectedDate] = useState<string>('Sun, 9 Aug');
   const [activeFilter, setActiveFilter] = useState<string>('Smart Filter');
+
+  // Filter States
+  const [isFilterModalVisible, setFilterModalVisible] = useState(false);
+  const [stopsFilter, setStopsFilter] = useState<string>('all'); // all, 0, 1, 2
+  const [airlinesFilter, setAirlinesFilter] = useState<string[]>([]);
+  const [fareTypeFilter, setFareTypeFilter] = useState<string>('all'); // all, refundable, non-refundable
+  const [maxPriceFilter, setMaxPriceFilter] = useState<number>(30000);
+  const [depTimeBucket, setDepTimeBucket] = useState<string>('all'); // all, morning(6-12), afternoon(12-18), evening(18-24), night(0-6)
+  const [arrTimeBucket, setArrTimeBucket] = useState<string>('all');
+
+  const parsedData = useMemo(() => {
+    let flightListings: FlightListing[] = [];
+    let departureCode = '';
+    let arrivalCode = '';
+    let headerDate = '';
+    let passengerCount = '1';
+    let cabinName = 'Economy';
+
+    const rootObj = searchResults?.data?.data || searchResults?.data || searchResults || {};
+    if (rootObj && (rootObj.travelOptions || rootObj.flights || rootObj.searchIntent)) {
+      const data = rootObj;
+
+      let rawOptions: any[] = [];
+      if (Array.isArray(data.travelOptions)) {
+        rawOptions = data.travelOptions;
+      } else if (data.travelOptions && typeof data.travelOptions === 'object') {
+        const entries = Object.values(data.travelOptions);
+        entries.forEach((entry: any) => {
+          if (Array.isArray(entry)) {
+            rawOptions.push(...entry);
+          } else if (entry && typeof entry === 'object' && Object.keys(entry).length > 0) {
+            rawOptions.push(entry);
+          }
+        });
+      }
+
+      const flightsMap = data.flights || {};
+      const faresMap = data.fares || {};
+      const baggageMap = data.baggageAllowances || {};
+
+      const intentObj = data.searchIntent || {};
+      const searchIntent = (typeof intentObj === 'object' ? Object.values(intentObj)[0] : {}) as any || {};
+
+      departureCode = searchIntent.origin || '';
+      arrivalCode = searchIntent.destination || '';
+
+      if (searchIntent.departDate) {
+        headerDate = searchIntent.departDate;
+      }
+
+      const adults = searchIntent.paxCriteria?.find((p: any) => p.type === 'ADT')?.count || 1;
+      const chd = searchIntent.paxCriteria?.find((p: any) => p.type === 'CHD')?.count || 0;
+      const inf = searchIntent.paxCriteria?.find((p: any) => p.type === 'INF')?.count || 0;
+      passengerCount = String(adults + chd + inf);
+      cabinName = searchIntent.cabin || 'Economy';
+
+      const airlineNames: any = {
+        '6E': 'IndiGo',
+        'SG': 'SpiceJet',
+        'AI': 'Air India',
+        'QP': 'Akasa Air',
+        'UK': 'Vistara',
+        'I5': 'Air Asia',
+        'G8': 'Go First'
+      };
+
+      const logoColors: any = {
+        '6E': '#0b2e66',
+        'SG': '#ffcc00',
+        'AI': '#e11d48',
+        'QP': '#ff6600',
+        'UK': '#660033',
+        'I5': '#ef4444',
+        'G8': '#0052cc'
+      };
+
+      flightListings = rawOptions.map((opt: any, index: number) => {
+        const fareId = opt.defaultFare?.associations?.[0]?.fareId || opt.fareId || opt.fareAssocId;
+        const fareObj = (fareId ? faresMap[fareId] : null) || (Object.values(faresMap)[0] as any) || {};
+        const priceVal = fareObj.pricing?.totalPrice || opt.price || 0;
+
+        const segmentIds = opt.subTravelOptionIds?.[0]?.split('__') || [];
+        const firstFlt = flightsMap[segmentIds[0]] || {};
+        const lastFlt = flightsMap[segmentIds[segmentIds.length - 1]] || {};
+
+        const depDateObj = firstFlt.departureAirport?.time ? new Date(firstFlt.departureAirport.time) : null;
+        const arrDateObj = lastFlt.arrivalAirport?.time ? new Date(lastFlt.arrivalAirport.time) : null;
+
+        const depTimeStr = depDateObj ? depDateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '12:00';
+        const arrTimeStr = arrDateObj ? arrDateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : '14:00';
+
+        let durationStr = '02h 00m';
+        if (depDateObj && arrDateObj) {
+          const diffMs = arrDateObj.getTime() - depDateObj.getTime();
+          const diffHrs = Math.floor(diffMs / 3600000);
+          const diffMins = Math.round((diffMs % 3600000) / 60000);
+          durationStr = `${String(diffHrs).padStart(2, '0')}h ${String(diffMins).padStart(2, '0')}m`;
+        }
+
+        const airlineCode = firstFlt.airlineCode || '6E';
+        const airlineName = airlineNames[airlineCode] || 'Airline';
+        const fltNo = firstFlt.fltNo || '';
+        const stopText = segmentIds.length > 1 ? `${segmentIds.length - 1} stop` : 'Non stop';
+
+        const fareFamily = fareObj.fareFamily || 'REGULAR';
+        
+        // Baggage extraction
+        const baggageId = fareObj.baggageAllowanceId;
+        const baggageData = baggageMap[baggageId] || {};
+        
+        const cabinBaggage = baggageData.BAGGAGE_CABIN;
+        const baggageCabinStr = cabinBaggage 
+          ? `${cabinBaggage.amount} ${cabinBaggage.unit} ${cabinBaggage.pieces ? `(${cabinBaggage.pieces} Piece)` : ''}`.trim() 
+          : '7 KG (1 Piece)';
+          
+        const checkinBaggage = baggageData.BAGGAGE_CHECK_IN;
+        const baggageCheckinStr = checkinBaggage 
+          ? `${checkinBaggage.amount} ${checkinBaggage.unit} ${checkinBaggage.pieces ? `(${checkinBaggage.pieces} Piece)` : ''}`.trim() 
+          : '15 KG (1 Piece)';
+
+        // Refundable & Seats extraction
+        let penaltyIds: string[] = [];
+        if (fareObj.subTravelOptionBenefits) {
+          const travelOption = Object.values(fareObj.subTravelOptionBenefits)[0] as any;
+          if (travelOption?.benefits) {
+            penaltyIds = travelOption.benefits.penaltyIds || [];
+          }
+        } else {
+          penaltyIds = fareObj.penaltyIds || [];
+        }
+
+        const penaltiesMap = data.penalties || {};
+        let isRefundable = true; // Default to true unless explicitly non-refundable
+        if (penaltyIds.length > 0) {
+          for (const pId of penaltyIds) {
+            const p = penaltiesMap[pId];
+            if (p && p.penaltyType === 'CANCEL') {
+              if (p.timeLines && p.timeLines.length > 0) {
+                // If any timeline is permitted, it's refundable
+                isRefundable = p.timeLines.some((t: any) => t.permitted);
+              } else {
+                isRefundable = false;
+              }
+            }
+          }
+        }
+
+        const refundableTextStr = isRefundable ? 'Refundable' : 'Non-Refundable';
+        const seatsLeftVal = fareObj.availableSeats ?? (Math.floor(Math.random() * 5) + 1);
+
+        return {
+          id: opt.travelOptionId || String(index),
+          airline: airlineName,
+          code: `${airlineCode}-${fltNo}`,
+          departureCode: departureCode,
+          arrivalCode: arrivalCode,
+          originCode: departureCode,
+          destCode: arrivalCode,
+          from: departureCode,
+          to: arrivalCode,
+          depTime: depTimeStr,
+          arrTime: arrTimeStr,
+          duration: durationStr,
+          stops: stopText,
+          price: `₹${priceVal.toLocaleString()}`,
+          logoBg: logoColors[airlineCode] || '#64748b',
+          logoChar: airlineCode,
+          fareType: fareFamily,
+          refundableText: refundableTextStr,
+          baggageCabin: baggageCabinStr,
+          baggageCheckin: baggageCheckinStr,
+          seatsLeft: seatsLeftVal,
+          rawPrice: priceVal,
+          stopCount: segmentIds.length - 1,
+          depHour: depDateObj ? depDateObj.getHours() : 12,
+          arrHour: arrDateObj ? arrDateObj.getHours() : 14,
+          isRefundableBoolean: isRefundable,
+        };
+      });
+    }
+
+    return { flightListings, departureCode, arrivalCode, headerDate, passengerCount, cabinName };
+  }, [searchResults]);
+
+  const { flightListings, departureCode, arrivalCode, headerDate, passengerCount, cabinName } = parsedData;
+
+  // Filter Logic
+  const filteredListings = useMemo(() => {
+    return flightListings.filter((f) => {
+      // 1. Stops
+      if (stopsFilter !== 'all') {
+        const targetStops = parseInt(stopsFilter, 10);
+        if (targetStops === 2) {
+          if ((f.stopCount || 0) < 2) return false;
+        } else {
+          if (f.stopCount !== targetStops) return false;
+        }
+      }
+
+      // 2. Airlines
+      if (airlinesFilter.length > 0) {
+        if (!airlinesFilter.includes(f.airline)) return false;
+      }
+
+      // 3. Fare Type
+      if (fareTypeFilter === 'refundable') {
+        if (!f.isRefundableBoolean) return false;
+      } else if (fareTypeFilter === 'non-refundable') {
+        if (f.isRefundableBoolean) return false;
+      }
+
+      // 4. Max Price
+      if (f.rawPrice && f.rawPrice > maxPriceFilter) return false;
+
+      // 5. Dep Time Bucket
+      const isInBucket = (hour: number, bucket: string) => {
+        if (bucket === 'all') return true;
+        if (bucket === 'night' && hour >= 0 && hour < 6) return true;
+        if (bucket === 'morning' && hour >= 6 && hour < 12) return true;
+        if (bucket === 'afternoon' && hour >= 12 && hour < 18) return true;
+        if (bucket === 'evening' && hour >= 18 && hour < 24) return true;
+        return false;
+      };
+
+      if (!isInBucket(f.depHour || 0, depTimeBucket)) return false;
+      if (!isInBucket(f.arrHour || 0, arrTimeBucket)) return false;
+
+      return true;
+    });
+  }, [flightListings, stopsFilter, airlinesFilter, fareTypeFilter, maxPriceFilter, depTimeBucket, arrTimeBucket]);
+
+  const airlineCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    flightListings.forEach(f => {
+      counts[f.airline] = (counts[f.airline] || 0) + 1;
+    });
+    return counts;
+  }, [flightListings]);
+
+  const fareTypeCounts = useMemo(() => {
+    let refundable = 0;
+    let nonRefundable = 0;
+    flightListings.forEach(f => {
+      if (f.isRefundableBoolean) refundable++;
+      else nonRefundable++;
+    });
+    return { refundable, nonRefundable };
+  }, [flightListings]);
+
+  const stopsCounts = useMemo(() => {
+    let all = flightListings.length;
+    let zero = 0;
+    let one = 0;
+    let twoPlus = 0;
+    
+    flightListings.forEach(f => {
+      const s = f.stopCount || 0;
+      if (s === 0) zero++;
+      else if (s === 1) one++;
+      else twoPlus++;
+    });
+    
+    return { all, zero, one, twoPlus };
+  }, [flightListings]);
 
   // Entrance slide animation
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -145,6 +444,40 @@ export default function FlightList({ onBack, onSelectFlight }: FlightListProps) 
       useNativeDriver: true,
     }).start();
   }, [slideAnim]);
+
+  // Filter bottom sheet animation
+  const filterSlideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const filterBgAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isFilterModalVisible) {
+      Animated.parallel([
+        Animated.spring(filterSlideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          bounciness: 4,
+        }),
+        Animated.timing(filterBgAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        })
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(filterSlideAnim, {
+          toValue: SCREEN_HEIGHT,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(filterBgAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
+  }, [isFilterModalVisible, filterSlideAnim, filterBgAnim]);
 
   // Handle Android hardware back button
   useEffect(() => {
@@ -160,6 +493,75 @@ export default function FlightList({ onBack, onSelectFlight }: FlightListProps) 
 
     return () => backHandler.remove();
   }, [onBack]);
+  // Ref for onSelectFlight to avoid re-rendering
+  const onSelectFlightRef = useRef(onSelectFlight);
+  useEffect(() => {
+    onSelectFlightRef.current = onSelectFlight;
+  }, [onSelectFlight]);
+
+  const flightCardsMemo = useMemo(() => {
+    if (filteredListings.length === 0) {
+      return (
+        <View style={styles.noFlightsCard}>
+          <Text style={styles.noFlightsEmoji}>✈️</Text>
+          <Text style={styles.noFlightsTitle}>No Flights Found</Text>
+          <Text style={styles.noFlightsSub}>Please try adjusting your filters.</Text>
+        </View>
+      );
+    }
+    return filteredListings.map((flight, idx) => (
+      <TouchableOpacity key={flight.id || idx} style={styles.flightCard} onPress={() => onSelectFlightRef.current(flight)} activeOpacity={0.9}>
+        <View style={styles.cardMainRow}>
+          <View style={styles.brandContainer}>
+            <View style={[styles.brandLogoCircle, { backgroundColor: flight.logoBg }]}>
+              <Text style={styles.logoText}>{flight.logoChar}</Text>
+            </View>
+            <View style={styles.brandTextCol}>
+              <Text style={styles.airlineName}>{flight.airline}</Text>
+              <Text style={styles.flightCode}>{flight.code}</Text>
+              <Text style={styles.fareTypeText}>{flight.fareType.toUpperCase()}</Text>
+            </View>
+          </View>
+          <View style={styles.timelineContainer}>
+            <View style={styles.timeBlock}>
+              <Text style={styles.timeValue}>{flight.depTime}</Text>
+              <Text style={styles.cityCode}>{departureCode}</Text>
+            </View>
+            <View style={styles.lineWrapper}>
+              <Text style={styles.durationLabel}>{flight.duration}</Text>
+              <View style={styles.lineContainer}>
+                <View style={styles.dot} />
+                <View style={styles.horizontalBar} />
+                <View style={styles.dot} />
+              </View>
+              <Text style={styles.stopsLabel}>{flight.stops}</Text>
+            </View>
+            <View style={styles.timeBlockRight}>
+              <Text style={styles.timeValue}>{flight.arrTime}</Text>
+              <Text style={styles.cityCode}>{arrivalCode}</Text>
+            </View>
+          </View>
+          <View style={styles.priceActionContainer}>
+            <Text style={styles.priceValue}>{flight.price}</Text>
+            <Text style={styles.refundableText}>{flight.refundableText}</Text>
+          </View>
+        </View>
+        <View style={styles.cardDivider} />
+        <View style={styles.cardBottomRow}>
+          <View style={styles.bottomLeftGroup}>
+            <View style={styles.farePill}>
+              <Text style={styles.farePillText}>{cabinName.toUpperCase()} • {flight.fareType.toUpperCase()}</Text>
+            </View>
+            <Text style={styles.baggageText}>💼 Cabin: {flight.baggageCabin}</Text>
+            <Text style={styles.baggageText}>🧳 Check-in: {flight.baggageCheckin}</Text>
+          </View>
+          <View style={styles.seatsPill}>
+            <Text style={styles.seatsPillText}>⚠️ {flight.seatsLeft} seat(s) left</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    ));
+  }, [filteredListings, departureCode, arrivalCode, cabinName]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -173,8 +575,8 @@ export default function FlightList({ onBack, onSelectFlight }: FlightListProps) 
             </TouchableOpacity>
 
             <View style={styles.headerMiddle}>
-              <Text style={styles.routeTitle}>DEL New Delhi → BOM Mumbai</Text>
-              <Text style={styles.routeSubtitle}>09 Aug • 👤 1 • Economy</Text>
+              <Text style={styles.routeTitle}>{departureCode} → {arrivalCode}</Text>
+              <Text style={styles.routeSubtitle}>{flightListings.length} Flights • {headerDate} • 👤 {passengerCount} • {cabinName}</Text>
             </View>
 
             <TouchableOpacity style={styles.editButton} activeOpacity={0.7}>
@@ -221,158 +623,151 @@ export default function FlightList({ onBack, onSelectFlight }: FlightListProps) 
             </TouchableOpacity>
           </View>
 
-          {/* Filter Pills Bar */}
+
+
+
+          {/* Filter Pills */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPillsScroll}>
-            {/* Smart Filter gradient pill */}
             <TouchableOpacity
-              style={[
-                styles.filterPill,
-                styles.smartFilterPill,
-                activeFilter === 'Smart Filter' && styles.smartFilterPillActive
-              ]}
-              onPress={() => setActiveFilter('Smart Filter')}
+              style={[styles.filterPill, { paddingHorizontal: 16 }]}
+              onPress={() => setFilterModalVisible(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.smartFilterPillText}>✨ Smart Filter</Text>
+              <Text style={styles.filterPillText}>⚙️ Filters</Text>
             </TouchableOpacity>
-
-            {[
-              { name: 'Sort ▾' },
-              { name: 'Filter (2) ▾' },
-              { name: 'Non-stop' },
-            ].map((pill) => {
-              const isSelected = activeFilter === pill.name;
-              return (
-                <TouchableOpacity
-                  key={pill.name}
-                  style={[styles.filterPill, isSelected && styles.filterPillSelected]}
-                  onPress={() => setActiveFilter(pill.name)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.filterPillText}>{pill.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
           </ScrollView>
-
-          {/* Price Range Advisor Banner Card */}
-          <View style={styles.advisorCard}>
-            <View style={styles.advisorHeader}>
-              <Text style={styles.advisorTitle}>
-                Current prices are in the <Text style={styles.higherText}>higher</Text> range
-              </Text>
-              <Text style={styles.advisorArrow}>▾</Text>
-            </View>
-            <View style={styles.advisorContent}>
-              <Text style={styles.advisorTrendIcon}>📈</Text>
-              <Text style={styles.advisorDesc}>
-                Prices are likely to increase in the next few days. Book now
-              </Text>
-            </View>
-          </View>
 
           {/* Listings & In-list Offers */}
           <View style={styles.listingsList}>
-            {FLIGHT_LISTINGS.map((flight, idx) => {
-              const element = (
-                <TouchableOpacity
-                  key={flight.id}
-                  style={styles.flightCard}
-                  onPress={onSelectFlight}
-                  activeOpacity={0.9}
-                >
-                  <View style={styles.cardTopRow}>
-                    {/* Left: Brand info */}
-                    <View style={styles.brandContainer}>
-                      <View style={[styles.brandLogoCircle, { backgroundColor: flight.logoBg }]}>
-                        <Text style={styles.logoText}>{flight.logoChar}</Text>
-                      </View>
-                      <View style={styles.brandTextCol}>
-                        <Text style={styles.airlineName}>{flight.airline}</Text>
-                        <Text style={styles.flightCode}>{flight.code}</Text>
-                      </View>
-                    </View>
-
-                    {/* Middle: Timings Timeline */}
-                    <View style={styles.timelineContainer}>
-                      <Text style={styles.timeValue}>{flight.depTime}</Text>
-                      <View style={styles.lineWrapper}>
-                        <Text style={styles.durationLabel}>{flight.duration}</Text>
-                        <View style={styles.horizontalBar} />
-                        <Text style={styles.stopsLabel}>{flight.stops}</Text>
-                      </View>
-                      <Text style={styles.timeValue}>{flight.arrTime}</Text>
-                    </View>
-
-                    {/* Right: Price */}
-                    <Text style={styles.priceValue}>{flight.price}</Text>
-                  </View>
-
-                  {/* Promo Green Label at bottom right */}
-                  <View style={styles.cardPromoRow}>
-                    <Text style={styles.promoText}>{flight.promoCodeText}</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-
-              // Render In-list Bank Offers scroll row after the 2nd flight card
-              if (idx === 1) {
-                return (
-                  <View key="combined-block">
-                    {element}
-                    {/* Horizontal Green Bank Offers Section */}
-                    <View style={styles.greenOffersSection}>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.greenOffersScroll}>
-
-                        {/* Offer Card 1 */}
-                        <View style={styles.bankOfferCard}>
-                          <View style={[styles.bankLogoBadge, styles.bankLogoAxis]}>
-                            <Text style={styles.bankLogoText}>A</Text>
-                          </View>
-                          <View style={styles.bankOfferTexts}>
-                            <View style={styles.bankOfferHeaderRow}>
-                              <Text style={styles.bankOfferTitle}>Flat 12% off</Text>
-                              <View style={styles.bankPromoLabel}>
-                                <Text style={styles.bankPromoText}>AXISCC</Text>
-                              </View>
-                            </View>
-                            <Text style={styles.bankOfferSub}>with Axis Credit Cards</Text>
-                          </View>
-                        </View>
-
-                        {/* Offer Card 2 */}
-                        <View style={styles.bankOfferCard}>
-                          <View style={[styles.bankLogoBadge, styles.bankLogoRbl]}>
-                            <Text style={styles.bankLogoText}>R</Text>
-                          </View>
-                          <View style={styles.bankOfferTexts}>
-                            <View style={styles.bankOfferHeaderRow}>
-                              <Text style={styles.bankOfferTitle}>Flat 12% off</Text>
-                              <View style={styles.bankPromoLabel}>
-                                <Text style={styles.bankPromoText}>RBLCC</Text>
-                              </View>
-                            </View>
-                            <Text style={styles.bankOfferSub}>with RBL Credit Cards</Text>
-                          </View>
-                        </View>
-
-                      </ScrollView>
-                    </View>
-                  </View>
-                );
-              }
-
-              return element;
-            })}
-          </View>
-
-          {/* Accent Blue Bottom Banner */}
-          <View style={styles.accentBannerCard}>
-            <Text style={styles.accentBannerTitle}>Fly cheaper on a different date?</Text>
+            {flightCardsMemo}
           </View>
 
         </ScrollView>
       </Animated.View>
+
+      {/* Filter Bottom Sheet */}
+      <View 
+        style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]}
+        pointerEvents={isFilterModalVisible ? 'auto' : 'none'}
+      >
+        <Animated.View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', opacity: filterBgAnim }}>
+          <TouchableOpacity 
+            style={{ flex: 1 }} 
+            activeOpacity={1} 
+            onPress={() => setFilterModalVisible(false)}
+          />
+        </Animated.View>
+        
+        <Animated.View 
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '80%',
+            backgroundColor: '#ffffff',
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            padding: 20,
+            transform: [{ translateY: filterSlideAnim }]
+          }}
+        >
+          <TouchableOpacity activeOpacity={1} style={{ flex: 1 }}>
+                
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingBottom: 16, marginBottom: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 20, marginRight: 8 }}>♈</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '800', color: '#0f172a', fontFamily: FONT_FAMILY }}>Filters</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setFilterModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <Text style={{ fontSize: 24, color: '#64748b' }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                  
+                  {/* STOPS */}
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', letterSpacing: 1, marginBottom: 8, marginTop: 10, fontFamily: FONT_FAMILY }}>STOPS</Text>
+                  <Radio label={`All Flights (${stopsCounts.all})`} selected={stopsFilter === 'all'} onPress={() => setStopsFilter('all')} />
+                  <Radio label={`Non-stop (${stopsCounts.zero})`} selected={stopsFilter === '0'} onPress={() => setStopsFilter('0')} />
+                  <Radio label={`1 Stop (${stopsCounts.one})`} selected={stopsFilter === '1'} onPress={() => setStopsFilter('1')} />
+                  <Radio label={`2+ Stops (${stopsCounts.twoPlus})`} selected={stopsFilter === '2'} onPress={() => setStopsFilter('2')} />
+
+                  {/* AIRLINES */}
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', letterSpacing: 1, marginBottom: 8, marginTop: 24, fontFamily: FONT_FAMILY }}>AIRLINES</Text>
+                  <Checkbox label={`All Airlines (${stopsCounts.all})`} checked={airlinesFilter.length === 0} onChange={() => setAirlinesFilter([])} />
+                  {Object.entries(airlineCounts).map(([al, count]) => (
+                    <Checkbox 
+                      key={al} 
+                      label={`${al} (${count})`} 
+                      checked={airlinesFilter.includes(al)} 
+                      onChange={(isChecked: boolean) => {
+                        if (isChecked) {
+                          setAirlinesFilter([...airlinesFilter, al]);
+                        } else {
+                          setAirlinesFilter(airlinesFilter.filter((a) => a !== al));
+                        }
+                      }} 
+                    />
+                  ))}
+
+                  {/* FARE TYPE */}
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', letterSpacing: 1, marginBottom: 8, marginTop: 24, fontFamily: FONT_FAMILY }}>FARE TYPE</Text>
+                  <Checkbox label={`Refundable (${fareTypeCounts.refundable})`} checked={fareTypeFilter === 'refundable'} onChange={() => setFareTypeFilter(fareTypeFilter === 'refundable' ? 'all' : 'refundable')} />
+                  <Checkbox label={`Non Refundable (${fareTypeCounts.nonRefundable})`} checked={fareTypeFilter === 'non-refundable'} onChange={() => setFareTypeFilter(fareTypeFilter === 'non-refundable' ? 'all' : 'non-refundable')} />
+
+                  {/* PRICE RANGE */}
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', letterSpacing: 1, marginBottom: 8, marginTop: 24, fontFamily: FONT_FAMILY }}>PRICE RANGE (Max Price)</Text>
+                  <SimpleSlider 
+                    min={3000} 
+                    max={50000} 
+                    value={maxPriceFilter} 
+                    onValueChange={setMaxPriceFilter} 
+                    formatLabel={(v: number) => `₹${v.toLocaleString('en-IN')}`} 
+                  />
+
+                  {/* DEPARTURE TIME */}
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', letterSpacing: 1, marginBottom: 8, marginTop: 24, fontFamily: FONT_FAMILY }}>DEPARTURE TIME</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {['all', 'morning', 'afternoon', 'evening', 'night'].map((bucket) => (
+                      <TouchableOpacity key={bucket} onPress={() => setDepTimeBucket(bucket)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: depTimeBucket === bucket ? '#b48348' : '#e2e8f0', backgroundColor: depTimeBucket === bucket ? '#fef3c7' : 'transparent', marginBottom: 8, marginRight: 8 }}>
+                        <Text style={{ fontSize: 12, color: depTimeBucket === bucket ? '#b48348' : '#64748b', fontWeight: '600', fontFamily: FONT_FAMILY }}>{bucket === 'all' ? 'Any Time' : bucket.charAt(0).toUpperCase() + bucket.slice(1)}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* ARRIVAL TIME */}
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', letterSpacing: 1, marginBottom: 8, marginTop: 24, fontFamily: FONT_FAMILY }}>ARRIVAL TIME</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {['all', 'morning', 'afternoon', 'evening', 'night'].map((bucket) => (
+                      <TouchableOpacity key={bucket} onPress={() => setArrTimeBucket(bucket)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: arrTimeBucket === bucket ? '#b48348' : '#e2e8f0', backgroundColor: arrTimeBucket === bucket ? '#fef3c7' : 'transparent', marginBottom: 8, marginRight: 8 }}>
+                        <Text style={{ fontSize: 12, color: arrTimeBucket === bucket ? '#b48348' : '#64748b', fontWeight: '600', fontFamily: FONT_FAMILY }}>{bucket === 'all' ? 'Any Time' : bucket.charAt(0).toUpperCase() + bucket.slice(1)}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                </ScrollView>
+                
+                <View style={{ paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', flexDirection: 'row', gap: 12 }}>
+                  <TouchableOpacity style={{ flex: 1, paddingVertical: 14, borderRadius: 8, alignItems: 'center', backgroundColor: '#f1f5f9' }} onPress={() => {
+                    setStopsFilter('all');
+                    setAirlinesFilter([]);
+                    setFareTypeFilter('all');
+                    setMaxPriceFilter(30000);
+                    setDepTimeBucket('all');
+                    setArrTimeBucket('all');
+                  }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#64748b', fontFamily: FONT_FAMILY }}>Reset</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={{ flex: 2, paddingVertical: 14, borderRadius: 8, alignItems: 'center', backgroundColor: '#ea580c' }} onPress={() => setFilterModalVisible(false)}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: 'white', fontFamily: FONT_FAMILY }}>Apply Filters</Text>
+                  </TouchableOpacity>
+                </View>
+
+              </TouchableOpacity>
+        </Animated.View>
+      </View>
+
     </SafeAreaView>
   );
 }
@@ -601,93 +996,198 @@ const styles = StyleSheet.create({
   },
   flightCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    marginBottom: 12,
-    padding: 12,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  cardTopRow: {
+  cardMainRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingBottom: 16,
   },
   brandContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1.2,
+    flex: 1.4,
   },
   brandLogoCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 8, // Rounded square
+    width: 40,
+    height: 40,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: 12,
   },
   logoText: {
     color: '#ffffff',
     fontWeight: '800',
-    fontSize: 12,
+    fontSize: 16,
   },
   brandTextCol: {
     flex: 1,
   },
   airlineName: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#1e293b',
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
     fontFamily: FONT_FAMILY,
   },
   flightCode: {
-    fontSize: 9,
+    fontSize: 11,
     color: '#64748b',
-    marginTop: 1,
+    marginTop: 2,
+    fontFamily: FONT_FAMILY,
+  },
+  fareTypeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#d97706',
+    marginTop: 4,
     fontFamily: FONT_FAMILY,
   },
   timelineContainer: {
     flex: 2,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 10,
   },
+  timeBlock: {
+    alignItems: 'flex-start',
+  },
+  timeBlockRight: {
+    alignItems: 'flex-end',
+  },
   timeValue: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '800',
     color: '#0f172a',
+    fontFamily: FONT_FAMILY,
+  },
+  cityCode: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginTop: 2,
     fontFamily: FONT_FAMILY,
   },
   lineWrapper: {
     flex: 1,
     alignItems: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 12,
   },
   durationLabel: {
-    fontSize: 8,
-    color: '#64748b',
-    fontWeight: '600',
-    marginBottom: 3,
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '500',
+    marginBottom: 4,
     fontFamily: FONT_FAMILY,
+  },
+  lineContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#cbd5e1',
   },
   horizontalBar: {
     height: 1.5,
     backgroundColor: '#cbd5e1',
-    width: '100%',
+    flex: 1,
   },
   stopsLabel: {
-    fontSize: 8,
-    color: '#64748b',
-    fontWeight: '600',
-    marginTop: 3,
+    fontSize: 10,
+    color: '#0f172a',
+    fontWeight: '700',
+    marginTop: 4,
     fontFamily: FONT_FAMILY,
   },
+  priceActionContainer: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
   priceValue: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: '800',
     color: '#0f172a',
-    flex: 1.1,
-    textAlign: 'right',
+    fontFamily: FONT_FAMILY,
+  },
+  refundableText: {
+    fontSize: 10,
+    color: '#10b981',
+    fontWeight: '500',
+    marginTop: 4,
+    fontFamily: FONT_FAMILY,
+  },
+  bookNowBtn: {
+    backgroundColor: '#b49771',
+    borderRadius: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    width: '100%',
+    alignItems: 'center',
+  },
+  bookNowText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 12,
+    fontFamily: FONT_FAMILY,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: '#f1f5f9',
+    width: '100%',
+  },
+  cardBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+  },
+  bottomLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  farePill: {
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginRight: 12,
+  },
+  farePillText: {
+    fontSize: 9,
+    color: '#3b82f6',
+    fontWeight: '700',
+    fontFamily: FONT_FAMILY,
+  },
+  baggageText: {
+    fontSize: 10,
+    color: '#64748b',
+    fontWeight: '500',
+    marginRight: 12,
+    fontFamily: FONT_FAMILY,
+  },
+  seatsPill: {
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fff5f5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  seatsPillText: {
+    fontSize: 10,
+    color: '#b91c1c',
+    fontWeight: '600',
     fontFamily: FONT_FAMILY,
   },
   cardPromoRow: {
@@ -869,5 +1369,35 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     backgroundColor: '#1e293b',
     marginHorizontal: 1.5,
+  },
+  noFlightsCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  noFlightsEmoji: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  noFlightsTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 8,
+  },
+  noFlightsSub: {
+    fontSize: 13,
+    color: '#64748b',
+    textAlign: 'center',
   },
 });

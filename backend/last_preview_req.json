@@ -1,0 +1,41 @@
+{
+  "sessionId": "65273301_0d3138a1-90df-47df-b781-86476553a4c7-260811203145",
+  "searchId": "DC_Search-fff84232-c9f6-4b58-9097-833732927c3e",
+  "dataId": "AVN+Z50p1/X4/0jsl8IHUOoTQ3KBt0JbaZoUDUSSDf0mqwLqZqe4pHiQiuKBvF1z3ngLgDf+uf3VicxXA5cI6UCn7T5ThnP+HQGIPbXTvgXwZdL1+mqU3pXQKcIu4ha8WARYqVPLo/66QfmC6hRkGomDumF7j3VHKZkXOwWDU1j/hExi8lqQ6q79VvXHg6GplfhP2rLmnvyKuO+hG+Urot7Lp4FEwiD4VEW/h5piQ+DP/M0hBH6nwamTTQConhMlNcnbN/o0+r0AJbIV4ymezPKTTJ1fP/+zxPNMvMyrW4o9uxddpFEZZs8bodJeoVwts2clJLuTuxoV",
+  "flightPreviewCriteria": {
+    "isMultiFareRequest": false,
+    "maxFareCount": 0,
+    "sellingCountryCode": "IN",
+    "sellingCurrencyCode": "INR"
+  },
+  "searchIntents": {
+    "sectors": [
+      {
+        "index": 1,
+        "origin": "PNQ",
+        "destination": "BOM",
+        "departDate": "30/08/2026",
+        "cabinType": "ECONOMY",
+        "paxInfos": [
+          {
+            "paxType": "ADT",
+            "paxCount": 1,
+            "paxFareType": "DEFAULT"
+          }
+        ]
+      }
+    ]
+  },
+  "travelOptions": {
+    "J1": {
+      "travelOptionId": "AI-2404-PNQ-DEL-1788048300__AI-2945-DEL-BOM-1788067800",
+      "price": 17754,
+      "subTravelOptions": [
+        {
+          "subTravelOptionId": "AI-2404-PNQ-DEL-1788048300__AI-2945-DEL-BOM-1788067800",
+          "fareId": "FARE_FAMILY__30/08/2026__AI^AI__AI^AI__PNQ_BOM__true__RETAIL__E__DOM__OW__UNKNOWN__S043__ECO FLEX,ECO FLEX__AVN+Z53HRH/5R8JCJ3NSJARi2gyQWH6PJkOVGRubcYCD6ixNLs4loPCMLAoVzaZS43rNixxbKuFOnaTX+GiyA7JmUYBnlg1Lp00MhYtYgY5pIR/8XfhiU3xgg0vlFgZmFLm4bosuqMUua0mupJqDCRmh0M0+MO5fe+AO2SLu/vUm7PskTJ9LcPuwxjiV8aFA/ngpgn3eKnF4ieiEw+rGWuY5EWAQZ0yJ3Ses8g8FGEZ6o5O8RRlmy8uAf1cDUoULMpwKUMHkI9CUz8l571zrauJ2N+MPwrGT/y7G1tA=~~V3"
+        }
+      ]
+    }
+  }
+}
