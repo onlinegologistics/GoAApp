@@ -94,6 +94,16 @@ interface SearchScreenProps {
   onSelectProfile?: (showBookings?: boolean) => void;
 }
 
+interface MultiCitySegment {
+  from: string;
+  fromCode: string;
+  fromCity: string;
+  to: string;
+  toCode: string;
+  toCity: string;
+  date: Date;
+}
+
 export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelectProfile }: SearchScreenProps) {
   const [activeCategory, setActiveCategory] = useState<CategoryType>('Flights');
   const [activeTab, setActiveTab] = useState<BottomTabType>('Home');
@@ -107,6 +117,21 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [activeSuggestField, setActiveSuggestField] = useState<'from' | 'to' | null>(null);
 
+  // Multi-City states
+  const [multiCitySegments, setMultiCitySegments] = useState<MultiCitySegment[]>([
+    { from: 'Mumbai (BOM)', fromCode: 'BOM', fromCity: 'Mumbai', to: 'New Delhi (DEL)', toCode: 'DEL', toCity: 'New Delhi', date: new Date() },
+    { from: 'New Delhi (DEL)', fromCode: 'DEL', fromCity: 'New Delhi', to: '', toCode: '', toCity: '', date: new Date(Date.now() + 86400000) },
+  ]);
+
+  // Search Modal state
+  const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchTarget, setSearchTarget] = useState<{
+    type: 'standard' | 'multicity';
+    field: 'from' | 'to';
+    index?: number;
+  } | null>(null);
+
   // Date selection states
   const [departDate, setDepartDate] = useState<Date>(new Date());
   const [returnDate, setReturnDate] = useState<Date>(() => {
@@ -115,8 +140,17 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
     return d;
   });
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
-  const [pickingDateType, setPickingDateType] = useState<'depart' | 'return'>('depart');
+  const [pickingDateType, setPickingDateType] = useState<
+    | 'depart'
+    | 'return'
+    | { index: number }
+  >('depart');
   const [loading, setLoading] = useState<boolean>(false);
+
+  const getMonthAbbreviation = (date: Date) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[date.getMonth()];
+  };
 
   const formatDate = (date: Date) => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -174,9 +208,11 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
               return <View key={`empty-${idx}`} style={styles.calendarDayCell} />;
             }
             
-            const isSelected = pickingDateType === 'depart'
-              ? day.date?.toDateString() === departDate.toDateString()
-              : day.date?.toDateString() === returnDate.toDateString();
+            const isSelected = typeof pickingDateType === 'string'
+              ? (pickingDateType === 'depart'
+                ? day.date?.toDateString() === departDate.toDateString()
+                : day.date?.toDateString() === returnDate.toDateString())
+              : (pickingDateType && day.date?.toDateString() === multiCitySegments[pickingDateType.index]?.date?.toDateString());
               
             return (
               <TouchableOpacity
@@ -185,10 +221,16 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
                 disabled={day.isDisabled}
                 onPress={() => {
                   if (day.date) {
-                    if (pickingDateType === 'depart') {
-                      setDepartDate(day.date);
-                    } else {
-                      setReturnDate(day.date);
+                    if (typeof pickingDateType === 'string') {
+                      if (pickingDateType === 'depart') {
+                        setDepartDate(day.date);
+                      } else {
+                        setReturnDate(day.date);
+                      }
+                    } else if (pickingDateType && typeof pickingDateType === 'object' && 'index' in pickingDateType) {
+                      const newSegments = [...multiCitySegments];
+                      newSegments[pickingDateType.index].date = day.date;
+                      setMultiCitySegments(newSegments);
                     }
                     setShowDatePicker(false);
                   }
@@ -250,43 +292,120 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
     }
   };
 
+  const fetchModalSuggestions = async (text: string) => {
+    setSearchQuery(text);
+    const cleanText = text.replace(/[^a-zA-Z\s]/g, '').trim();
+    if (cleanText.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    try {
+      const resData = await flightService.searchAirports(cleanText);
+      if (resData && resData.success && resData.data) {
+        const airports = Array.isArray(resData.data)
+          ? resData.data
+          : (Array.isArray(resData.data.airportData)
+            ? resData.data.airportData
+            : (Array.isArray(resData.data.airports) ? resData.data.airports : (resData.data.data && Array.isArray(resData.data.data) ? resData.data.data : [])));
+        setSuggestions(airports);
+      }
+    } catch (err) {
+      console.log('Search modal suggest error:', err);
+    }
+  };
+
+  const addSegment = () => {
+    if (multiCitySegments.length >= 5) return;
+    const lastSeg = multiCitySegments[multiCitySegments.length - 1];
+    setMultiCitySegments([
+      ...multiCitySegments,
+      {
+        from: lastSeg.to,
+        fromCode: lastSeg.toCode,
+        fromCity: lastSeg.toCity,
+        to: '',
+        toCode: '',
+        toCity: '',
+        date: new Date(lastSeg.date.getTime() + 86400000),
+      }
+    ]);
+  };
+
+  const removeSegment = (index: number) => {
+    if (multiCitySegments.length <= 2) return;
+    const updated = [...multiCitySegments];
+    updated.splice(index, 1);
+    setMultiCitySegments(updated);
+  };
+
   // Passenger Count State
   const [adults, setAdults] = useState<number>(1);
   const [children, setChildren] = useState<number>(0);
   const [infants, setInfants] = useState<number>(0);
   const [showTravelerDropdown, setShowTravelerDropdown] = useState<boolean>(false);
+  const [cabinClass, setCabinClass] = useState<string>('Economy');
+  const [showCabinDropdown, setShowCabinDropdown] = useState<boolean>(false);
 
   const handleSearchClick = async () => {
     let results = null;
     let params: any = null;
     setLoading(true);
     try {
-      const year = departDate.getFullYear();
-      const month = String(departDate.getMonth() + 1).padStart(2, '0');
-      const day = String(departDate.getDate()).padStart(2, '0');
-      const formattedDepartDate = `${year}-${month}-${day}`;
+      if (tripType === 'Multi City') {
+        const formattedSegments = multiCitySegments.map(seg => {
+          const year = seg.date.getFullYear();
+          const month = String(seg.date.getMonth() + 1).padStart(2, '0');
+          const day = String(seg.date.getDate()).padStart(2, '0');
+          return {
+            from: seg.from,
+            to: seg.to,
+            departDate: `${year}-${month}-${day}`
+          };
+        });
 
-      params = {
-        from: fromLocation,
-        to: toLocation,
-        departDate: formattedDepartDate,
-        passengers: { adults, children, infants },
-      };
+        params = {
+          segments: formattedSegments,
+          passengers: { adults, children, infants },
+          cabinClass,
+        };
 
-      if (tripType === 'Round Trip' && returnDate) {
-        const retYear = returnDate.getFullYear();
-        const retMonth = String(returnDate.getMonth() + 1).padStart(2, '0');
-        const retDay = String(returnDate.getDate()).padStart(2, '0');
-        params.returnDate = `${retYear}-${retMonth}-${retDay}`;
+        const firstSeg = formattedSegments[0];
+        const searchParam = {
+          from: firstSeg.from,
+          to: firstSeg.to,
+          departDate: firstSeg.departDate,
+          passengers: { adults, children, infants },
+          cabinClass,
+        };
+        results = await flightService.searchFlights(searchParam);
+      } else {
+        const year = departDate.getFullYear();
+        const month = String(departDate.getMonth() + 1).padStart(2, '0');
+        const day = String(departDate.getDate()).padStart(2, '0');
+        const formattedDepartDate = `${year}-${month}-${day}`;
+
+        params = {
+          from: fromLocation,
+          to: toLocation,
+          departDate: formattedDepartDate,
+          passengers: { adults, children, infants },
+          cabinClass,
+        };
+
+        if (tripType === 'Round Trip' && returnDate) {
+          const retYear = returnDate.getFullYear();
+          const retMonth = String(returnDate.getMonth() + 1).padStart(2, '0');
+          const retDay = String(returnDate.getDate()).padStart(2, '0');
+          params.returnDate = `${retYear}-${retMonth}-${retDay}`;
+        }
+
+        const firstSearchParam = { ...params };
+        if (tripType === 'Round Trip') {
+          delete firstSearchParam.returnDate;
+        }
+
+        results = await flightService.searchFlights(firstSearchParam);
       }
-
-      // For step-by-step model, the first search is outbound only (one-way)
-      const firstSearchParam = { ...params };
-      if (tripType === 'Round Trip') {
-        delete firstSearchParam.returnDate;
-      }
-
-      results = await flightService.searchFlights(firstSearchParam);
     } catch (e: any) {
       console.log('Flight Search API:', e?.message);
     } finally {
@@ -449,137 +568,185 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
               })}
             </View>
 
-            {/* Stacked From Field */}
-            <View style={{ zIndex: 110, position: 'relative' }}>
-              <View style={styles.inputBlock}>
-                <View style={styles.planeIconCircle}>
-                  <Text style={styles.planeIconGlyph}>🛫</Text>
+            {tripType === 'Multi City' ? (
+              <View style={styles.multiCityContainer}>
+                {/* Header Labels */}
+                <View style={styles.multiCityHeaderRow}>
+                  <Text style={[styles.multiCityHeaderLabel, { flex: 1.2 }]}>FROM</Text>
+                  <Text style={[styles.multiCityHeaderLabel, { flex: 1.2, marginLeft: 8 }]}>TO</Text>
+                  <Text style={[styles.multiCityHeaderLabel, { flex: 1, marginLeft: 8 }]}>DATE</Text>
+                  <View style={{ width: 32 }} />
                 </View>
-                <View style={styles.inputTextContainer}>
-                  <Text style={styles.inputLabel}>From</Text>
-                  <TextInput
-                    style={styles.inputField}
-                    value={fromLocation}
-                    onChangeText={(text) => fetchSuggestions(text, 'from')}
-                    placeholder="Enter departure city/country"
-                    placeholderTextColor="#94a3b8"
-                    onFocus={() => {
-                      if (fromLocation.trim().length >= 2) {
-                        fetchSuggestions(fromLocation, 'from');
-                      }
-                    }}
-                  />
-                </View>
-              </View>
-              {activeSuggestField === 'from' && suggestions.length > 0 && (
-                <View style={styles.suggestionsContainer}>
-                  <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
-                    {suggestions.map((item: any, idx: number) => {
-                      const code = item.airportCode || item.code;
-                      const city = item.airportCity || item.city || '';
-                      const name = item.airportName || item.name || '';
-                      return (
-                        <TouchableOpacity
-                          key={idx}
-                          style={styles.suggestionItem}
-                          onPress={() => {
-                            setFromLocation(`${city || name} (${code})`);
-                            setSuggestions([]);
-                            setActiveSuggestField(null);
-                          }}
-                        >
-                          <Text style={styles.suggestionCode}>{code}</Text>
-                          <View style={styles.suggestionDetails}>
-                            <Text style={styles.suggestionCity}>{city || name}</Text>
-                            <Text style={styles.suggestionName}>{name}</Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
 
-            {/* Stacked To Field */}
-            <View style={{ zIndex: 100, position: 'relative' }}>
-              <View style={styles.inputBlock}>
-                <View style={styles.planeIconCircle}>
-                  <Text style={styles.planeIconGlyph}>🛬</Text>
-                </View>
-                <View style={styles.inputTextContainer}>
-                  <Text style={styles.inputLabel}>To</Text>
-                  <TextInput
-                    style={styles.inputField}
-                    value={toLocation}
-                    onChangeText={(text) => fetchSuggestions(text, 'to')}
-                    placeholder="Enter destination city/country"
-                    placeholderTextColor="#94a3b8"
-                    onFocus={() => {
-                      if (toLocation.trim().length >= 2) {
-                        fetchSuggestions(toLocation, 'to');
-                      }
-                    }}
-                  />
-                </View>
-              </View>
-              {activeSuggestField === 'to' && suggestions.length > 0 && (
-                <View style={styles.suggestionsContainer}>
-                  <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
-                    {suggestions.map((item: any, idx: number) => {
-                      const code = item.airportCode || item.code;
-                      const city = item.airportCity || item.city || '';
-                      const name = item.airportName || item.name || '';
-                      return (
-                        <TouchableOpacity
-                          key={idx}
-                          style={styles.suggestionItem}
-                          onPress={() => {
-                            setToLocation(`${city || name} (${code})`);
-                            setSuggestions([]);
-                            setActiveSuggestField(null);
-                          }}
-                        >
-                          <Text style={styles.suggestionCode}>{code}</Text>
-                          <View style={styles.suggestionDetails}>
-                            <Text style={styles.suggestionCity}>{city || name}</Text>
-                            <Text style={styles.suggestionName}>{name}</Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
+                {/* Segments */}
+                {multiCitySegments.map((segment, idx) => (
+                  <View key={idx} style={styles.multiCitySegmentRow}>
+                    {/* FROM Field */}
+                    <TouchableOpacity
+                      style={[styles.multiCityCard, { flex: 1.2 }]}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setSearchTarget({ type: 'multicity', field: 'from', index: idx });
+                        setSearchQuery('');
+                        setSuggestions([]);
+                        setShowSearchModal(true);
+                      }}
+                    >
+                      {segment.fromCode ? (
+                        <View>
+                          <Text style={styles.multiCityCodeText}>{segment.fromCode}</Text>
+                          <Text style={styles.multiCitySubText} numberOfLines={1}>{segment.fromCity}</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.multiCityPlaceholder}>From</Text>
+                      )}
+                    </TouchableOpacity>
 
-            {/* Side by Side Dates */}
-            <View style={styles.datesRow}>
-              <TouchableOpacity
-                style={[styles.inputBlockHalf, tripType !== 'One Way' && styles.marginRightCell]}
-                onPress={() => {
-                  setPickingDateType('depart');
-                  setShowDatePicker(true);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.inputLabel}>Departure</Text>
-                <Text style={styles.dateValue}>{formatDate(departDate)}</Text>
-              </TouchableOpacity>
-              {tripType !== 'One Way' && (
+                    {/* TO Field */}
+                    <TouchableOpacity
+                      style={[styles.multiCityCard, { flex: 1.2, marginLeft: 8 }, !segment.toCode && styles.multiCityCardEmpty]}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setSearchTarget({ type: 'multicity', field: 'to', index: idx });
+                        setSearchQuery('');
+                        setSuggestions([]);
+                        setShowSearchModal(true);
+                      }}
+                    >
+                      {segment.toCode ? (
+                        <View>
+                          <Text style={styles.multiCityCodeText}>{segment.toCode}</Text>
+                          <Text style={styles.multiCitySubText} numberOfLines={1}>{segment.toCity}</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.multiCityPlaceholderEmpty}>To</Text>
+                      )}
+                    </TouchableOpacity>
+
+                    {/* DATE Field */}
+                    <TouchableOpacity
+                      style={[styles.multiCityCard, { flex: 1, marginLeft: 8 }, !segment.date && styles.multiCityCardEmpty]}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setPickingDateType({ index: idx });
+                        setShowDatePicker(true);
+                      }}
+                    >
+                      {segment.date ? (
+                        <View>
+                          <Text style={styles.multiCityDateMainText}>
+                            {segment.date.getDate()} {getMonthAbbreviation(segment.date)}
+                          </Text>
+                          <Text style={styles.multiCitySubText}>{segment.date.getFullYear()}</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.multiCityPlaceholderEmpty}>Date</Text>
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Delete button */}
+                    <View style={styles.deleteButtonContainer}>
+                      {multiCitySegments.length > 2 && (
+                        <TouchableOpacity
+                          style={styles.deleteCircleBtn}
+                          onPress={() => removeSegment(idx)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.deleteCircleText}>✕</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                ))}
+
+                {/* ADD CITY Button */}
                 <TouchableOpacity
-                  style={styles.inputBlockHalf}
-                  onPress={() => {
-                    setPickingDateType('return');
-                    setShowDatePicker(true);
-                  }}
+                  style={styles.addCityDashedBtn}
+                  onPress={addSegment}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.inputLabel}>Return</Text>
-                  <Text style={styles.dateValue}>{formatDate(returnDate)}</Text>
+                  <Text style={styles.addCityBtnText}>+ ADD CITY</Text>
                 </TouchableOpacity>
-              )}
-            </View>
+              </View>
+            ) : (
+              <>
+                {/* Stacked From Field */}
+                <View style={{ zIndex: 110, position: 'relative' }}>
+                  <TouchableOpacity
+                    style={styles.inputBlock}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setSearchTarget({ type: 'standard', field: 'from' });
+                      setSearchQuery('');
+                      setSuggestions([]);
+                      setShowSearchModal(true);
+                    }}
+                  >
+                    <View style={styles.planeIconCircle}>
+                      <Text style={styles.planeIconGlyph}>🛫</Text>
+                    </View>
+                    <View style={styles.inputTextContainer}>
+                      <Text style={styles.inputLabel}>From</Text>
+                      <Text style={styles.inputValue}>
+                        {fromLocation || 'Enter departure city/country'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Stacked To Field */}
+                <View style={{ zIndex: 100, position: 'relative' }}>
+                  <TouchableOpacity
+                    style={styles.inputBlock}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setSearchTarget({ type: 'standard', field: 'to' });
+                      setSearchQuery('');
+                      setSuggestions([]);
+                      setShowSearchModal(true);
+                    }}
+                  >
+                    <View style={styles.planeIconCircle}>
+                      <Text style={styles.planeIconGlyph}>🛬</Text>
+                    </View>
+                    <View style={styles.inputTextContainer}>
+                      <Text style={styles.inputLabel}>To</Text>
+                      <Text style={styles.inputValue}>
+                        {toLocation || 'Enter destination city/country'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Side by Side Dates */}
+                <View style={styles.datesRow}>
+                  <TouchableOpacity
+                    style={[styles.inputBlockHalf, tripType !== 'One Way' && styles.marginRightCell]}
+                    onPress={() => {
+                      setPickingDateType('depart');
+                      setShowDatePicker(true);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.inputLabel}>Departure</Text>
+                    <Text style={styles.dateValue}>{formatDate(departDate)}</Text>
+                  </TouchableOpacity>
+                  {tripType !== 'One Way' && (
+                    <TouchableOpacity
+                      style={styles.inputBlockHalf}
+                      onPress={() => {
+                        setPickingDateType('return');
+                        setShowDatePicker(true);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.inputLabel}>Return</Text>
+                      <Text style={styles.dateValue}>{formatDate(returnDate)}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </>
+            )}
 
             {/* Custom Date Picker Modal */}
             <Modal
@@ -617,10 +784,136 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
               </View>
             </Modal>
 
+            {/* Premium Airport Search Modal */}
+            <Modal
+              visible={showSearchModal}
+              transparent={true}
+              animationType="slide"
+              onRequestClose={() => {
+                setShowSearchModal(false);
+                setSuggestions([]);
+              }}
+            >
+              <SafeAreaView style={styles.modalOverlay}>
+                <View style={styles.airportSearchContainer}>
+                  {/* Modal Header with Back Arrow */}
+                  <View style={styles.searchHeader}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowSearchModal(false);
+                        setSuggestions([]);
+                      }}
+                      style={styles.searchBackBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.searchBackBtnText}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.searchTitle}>Select Airport</Text>
+                  </View>
+
+                  {/* Search Input block */}
+                  <View style={styles.searchInputBlock}>
+                    <Text style={styles.searchGlassGlyph}>🔍</Text>
+                    <TextInput
+                      style={styles.searchInputField}
+                      autoFocus={true}
+                      value={searchQuery}
+                      onChangeText={fetchModalSuggestions}
+                      placeholder="Type city or airport code..."
+                      placeholderTextColor="#94a3b8"
+                    />
+                    {searchQuery.length > 0 && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSearchQuery('');
+                          setSuggestions([]);
+                        }}
+                        style={styles.searchClearBtn}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.searchClearBtnText}>✕</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Suggestions List */}
+                  <ScrollView style={styles.suggestionsListScroll} keyboardShouldPersistTaps="handled">
+                    {suggestions.length > 0 ? (
+                      suggestions.map((item: any, idx: number) => {
+                        const code = item.airportCode || item.code;
+                        const city = item.airportCity || item.city || '';
+                        const name = item.airportName || item.name || '';
+                        return (
+                          <TouchableOpacity
+                            key={idx}
+                            style={styles.modalSuggestionItem}
+                            onPress={() => {
+                              if (searchTarget) {
+                                if (searchTarget.type === 'standard') {
+                                  if (searchTarget.field === 'from') {
+                                    setFromLocation(`${city || name} (${code})`);
+                                  } else {
+                                    setToLocation(`${city || name} (${code})`);
+                                  }
+                                } else if (searchTarget.type === 'multicity' && typeof searchTarget.index === 'number') {
+                                  const segmentIdx = searchTarget.index;
+                                  const newSegments = [...multiCitySegments];
+                                  if (searchTarget.field === 'from') {
+                                    newSegments[segmentIdx].from = `${city || name} (${code})`;
+                                    newSegments[segmentIdx].fromCode = code;
+                                    newSegments[segmentIdx].fromCity = city || name;
+                                  } else {
+                                    newSegments[segmentIdx].to = `${city || name} (${code})`;
+                                    newSegments[segmentIdx].toCode = code;
+                                    newSegments[segmentIdx].toCity = city || name;
+                                    // Auto-propagate to the next segment's origin
+                                    if (segmentIdx + 1 < newSegments.length) {
+                                      newSegments[segmentIdx + 1].from = `${city || name} (${code})`;
+                                      newSegments[segmentIdx + 1].fromCode = code;
+                                      newSegments[segmentIdx + 1].fromCity = city || name;
+                                    }
+                                  }
+                                  setMultiCitySegments(newSegments);
+                                }
+                              }
+                              setShowSearchModal(false);
+                              setSuggestions([]);
+                            }}
+                          >
+                            <View style={styles.modalSuggestionLeft}>
+                              <Text style={styles.modalSuggestionCode}>{code}</Text>
+                            </View>
+                            <View style={styles.modalSuggestionDetails}>
+                              <Text style={styles.modalSuggestionCity}>{city || name}</Text>
+                              <Text style={styles.modalSuggestionName}>{name}</Text>
+                            </View>
+                            <Text style={styles.modalSuggestionPlaneGlyph}>✈</Text>
+                          </TouchableOpacity>
+                        );
+                      })
+                    ) : (
+                      searchQuery.length >= 2 ? (
+                        <View style={styles.modalEmptyState}>
+                          <Text style={styles.modalEmptyText}>No airports found</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.modalEmptyState}>
+                          <Text style={styles.modalEmptyText}>Type at least 2 characters to search</Text>
+                        </View>
+                      )
+                    )}
+                  </ScrollView>
+                </View>
+              </SafeAreaView>
+            </Modal>
+
             {/* Travelers Row (Click to open dropdown) */}
             <TouchableOpacity
               style={styles.travelersContainer}
-              onPress={() => setShowTravelerDropdown(!showTravelerDropdown)}
+              onPress={() => {
+                setShowTravelerDropdown(!showTravelerDropdown);
+                setShowCabinDropdown(false);
+              }}
               activeOpacity={0.8}
             >
               <View style={styles.travelersLeft}>
@@ -696,6 +989,58 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
                 >
                   <Text style={styles.dropdownDoneBtnText}>Done</Text>
                 </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Cabin Class Row (Click to open dropdown) */}
+            <TouchableOpacity
+              style={[styles.travelersContainer, { marginTop: 12 }]}
+              onPress={() => {
+                setShowCabinDropdown(!showCabinDropdown);
+                setShowTravelerDropdown(false);
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={styles.travelersLeft}>
+                <Text style={styles.inputLabel}>Cabin Class</Text>
+                <Text style={styles.travelersValue}>{cabinClass}</Text>
+              </View>
+              <View style={styles.dropdownArrowContainer}>
+                <Text style={styles.dropdownArrowGlyph}>▾</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Cabin Class Dropdown Popover */}
+            {showCabinDropdown && (
+              <View style={styles.travelerDropdown}>
+                {['Economy', 'Premium Economy', 'Business', 'First Class'].map((cls) => {
+                  const isSelected = cabinClass === cls;
+                  return (
+                    <TouchableOpacity
+                      key={cls}
+                      style={[
+                        styles.dropdownRowItem,
+                        { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+                        isSelected && { backgroundColor: '#f8fafc' }
+                      ]}
+                      onPress={() => {
+                        setCabinClass(cls);
+                        setShowCabinDropdown(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[
+                          styles.dropdownItemTitle,
+                          { fontWeight: isSelected ? '700' : '400', color: isSelected ? '#b48348' : '#0f172a' }
+                        ]}>
+                          {cls}
+                        </Text>
+                      </View>
+                      {isSelected && <Text style={{ color: '#b48348', fontWeight: 'bold', fontSize: 16 }}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
 
@@ -1561,5 +1906,214 @@ const styles = StyleSheet.create({
   },
   calendarDayTextSelected: {
     color: '#ffffff',
+  },
+  // Multi City styles
+  multiCityContainer: {
+    marginBottom: 16,
+  },
+  multiCityHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  multiCityHeaderLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#94a3b8',
+    letterSpacing: 0.5,
+  },
+  multiCitySegmentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  multiCityCard: {
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    minHeight: 56,
+    justifyContent: 'center',
+  },
+  multiCityCardEmpty: {
+    borderColor: '#bfdbfe',
+    backgroundColor: '#eff6ff',
+  },
+  multiCityCodeText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  multiCityDateMainText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  multiCitySubText: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  multiCityPlaceholder: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#94a3b8',
+  },
+  multiCityPlaceholderEmpty: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3b82f6',
+  },
+  deleteButtonContainer: {
+    width: 32,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  deleteCircleBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#cbd5e1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteCircleText: {
+    fontSize: 11,
+    color: '#ffffff',
+    fontWeight: 'bold',
+  },
+  addCityDashedBtn: {
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#3b82f6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+    backgroundColor: 'rgba(59, 130, 246, 0.02)',
+  },
+  addCityBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#3b82f6',
+  },
+
+  // Premium Airport Search Modal Styles
+  airportSearchContainer: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  searchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  searchBackBtn: {
+    marginRight: 16,
+    padding: 4,
+  },
+  searchBackBtnText: {
+    fontSize: 24,
+    color: '#0f172a',
+    fontWeight: 'bold',
+  },
+  searchTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  searchInputBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    height: 48,
+  },
+  searchGlassGlyph: {
+    fontSize: 16,
+    color: '#94a3b8',
+    marginRight: 10,
+  },
+  searchInputField: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0f172a',
+    padding: 0,
+  },
+  searchClearBtn: {
+    padding: 4,
+  },
+  searchClearBtnText: {
+    fontSize: 14,
+    color: '#94a3b8',
+  },
+  suggestionsListScroll: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  modalSuggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  modalSuggestionLeft: {
+    width: 60,
+    height: 36,
+    backgroundColor: '#eff6ff',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  modalSuggestionCode: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1d4ed8',
+  },
+  modalSuggestionDetails: {
+    flex: 1,
+  },
+  modalSuggestionCity: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  modalSuggestionName: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  modalSuggestionPlaneGlyph: {
+    fontSize: 16,
+    color: '#94a3b8',
+    marginLeft: 8,
+  },
+  modalEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  modalEmptyText: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
   },
 });

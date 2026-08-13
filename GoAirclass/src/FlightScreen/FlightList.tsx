@@ -27,6 +27,7 @@ interface FlightListProps {
   tripType?: 'One Way' | 'Round Trip' | 'Multi City';
   flightSearchParams?: any;
   selectionStep?: 'outbound' | 'return';
+  multiCityStep?: number;
 }
 
 interface FlightListing {
@@ -172,7 +173,7 @@ const DATE_CHIPS: DateChip[] = [
   { day: 'Mon', date: '10 Aug', price: '₹6,079', isCheap: true },
 ];
 
-export default function FlightList({ onBack, onSelectFlight, searchResults, tripType, flightSearchParams, selectionStep = 'outbound' }: FlightListProps) {
+export default function FlightList({ onBack, onSelectFlight, searchResults, tripType, flightSearchParams, selectionStep = 'outbound', multiCityStep = 0 }: FlightListProps) {
   const [selectedDate, setSelectedDate] = useState<string>('Sun, 9 Aug');
   const [activeFilter, setActiveFilter] = useState<string>('Smart Filter');
 
@@ -361,6 +362,7 @@ export default function FlightList({ onBack, onSelectFlight, searchResults, trip
             <View style={styles.headerMiddle}>
               <Text style={styles.routeTitle}>
                 {isRoundTripSearch ? `[${selectionStep === 'outbound' ? 'Outbound' : 'Return'}] ` : ''}
+                {tripType === 'Multi City' ? `[Trip ${multiCityStep + 1} of ${flightSearchParams?.segments?.length || 2}] ` : ''}
                 {displayDepartureCode} → {displayArrivalCode}
               </Text>
               <Text style={styles.routeSubtitle}>{visibleFlights.length} Flights • {displayHeaderDate} • 👤 {passengerCount} • {cabinName}</Text>
@@ -476,7 +478,12 @@ export default function FlightList({ onBack, onSelectFlight, searchResults, trip
                   </View>
                   <View style={styles.priceActionContainer}>
                     <Text style={styles.priceValue}>{flight.price}</Text>
-                    <Text style={styles.refundableText}>{flight.refundableText}</Text>
+                    <Text style={[
+                      styles.refundableText,
+                      { color: flight.refundableText?.toLowerCase().includes('non') ? '#dc2626' : '#16a34a' }
+                    ]}>
+                      {flight.refundableText}
+                    </Text>
                   </View>
                 </View>
                 <View style={styles.cardDivider} />
@@ -488,9 +495,11 @@ export default function FlightList({ onBack, onSelectFlight, searchResults, trip
                     <Text style={styles.baggageText}>💼 Cabin: {flight.baggageCabin}</Text>
                     <Text style={styles.baggageText}>🧳 Check-in: {flight.baggageCheckin}</Text>
                   </View>
-                  <View style={styles.seatsPill}>
-                    <Text style={styles.seatsPillText}>⚠️ {flight.seatsLeft} seat(s) left</Text>
-                  </View>
+                  {flight.seatsLeft !== undefined && flight.seatsLeft !== null && flight.seatsLeft > 0 && flight.seatsLeft <= 5 && (
+                    <View style={styles.seatsPill}>
+                      <Text style={styles.seatsPillText}>⚠️ {flight.seatsLeft} seat(s) left</Text>
+                    </View>
+                  )}
                 </View>
               </TouchableOpacity>
             );

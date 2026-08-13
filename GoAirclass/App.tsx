@@ -45,6 +45,13 @@ function App() {
   const [loadingReturn, setLoadingReturn] = useState(false);
   const [outboundSearchResults, setOutboundSearchResults] = useState<any>(null);
 
+  // Multi-City flow states
+  const [multiCityStep, setMultiCityStep] = useState<number>(0);
+  const [selectedMultiCityFlights, setSelectedMultiCityFlights] = useState<any[]>([]);
+  const [selectedMultiCityOptions, setSelectedMultiCityOptions] = useState<any[]>([]);
+  const [multiCitySessionIds, setMultiCitySessionIds] = useState<string[]>([]);
+  const [multiCityResultsHistory, setMultiCityResultsHistory] = useState<any[]>([]);
+
   useEffect(() => {
     const handleBackPress = () => {
       if (
@@ -232,6 +239,13 @@ function App() {
             if (searchTripType === 'Round Trip' && roundTripFlowStep === 'return') {
               setFlightSearchResults(outboundSearchResults);
               setRoundTripFlowStep('outbound');
+            } else if (searchTripType === 'Multi City' && multiCityStep > 0) {
+              const prevStep = multiCityStep - 1;
+              setMultiCityStep(prevStep);
+              setFlightSearchResults(multiCityResultsHistory[prevStep]);
+              setSelectedMultiCityFlights(prev => prev.slice(0, prevStep));
+              setSelectedMultiCityOptions(prev => prev.slice(0, prevStep));
+              setMultiCitySessionIds(prev => prev.slice(0, prevStep));
             } else {
               setCurrentScreen('search');
             }
@@ -247,14 +261,88 @@ function App() {
           tripType={searchTripType}
           flightSearchParams={flightSearchParams}
           selectionStep={roundTripFlowStep === 'return' ? 'return' : 'outbound'}
+          multiCityStep={multiCityStep}
         />
         {currentScreen === 'fareSelection' && (
           <FlightFareSelection
             searchResults={flightSearchResults}
             selectedFlight={selectedFlight}
             onClose={() => setCurrentScreen('flightList')}
+            tripType={searchTripType}
+            multiCityStep={multiCityStep}
             onContinue={async (opt, sessId) => {
-              if (searchTripType === 'Round Trip' && roundTripFlowStep === 'outbound') {
+              if (searchTripType === 'Multi City') {
+                const nextStep = multiCityStep + 1;
+                const totalSegments = flightSearchParams?.segments?.length || 0;
+                
+                const updatedFlights = [...selectedMultiCityFlights];
+                updatedFlights[multiCityStep] = selectedFlight;
+                setSelectedMultiCityFlights(updatedFlights);
+                
+                const updatedOptions = [...selectedMultiCityOptions];
+                updatedOptions[multiCityStep] = opt;
+                setSelectedMultiCityOptions(updatedOptions);
+                
+                const updatedSessionIds = [...multiCitySessionIds];
+                updatedSessionIds[multiCityStep] = sessId || sessionId || '';
+                setMultiCitySessionIds(updatedSessionIds);
+
+                if (nextStep < totalSegments) {
+                  setLoadingReturn(true);
+                  setCurrentScreen('flightList');
+                  try {
+                    const nextSeg = flightSearchParams.segments[nextStep];
+                    console.log(`[App] Searching Multi-City next leg ${nextStep + 1} of ${totalSegments} with params:`, {
+                      from: nextSeg.from,
+                      to: nextSeg.to,
+                      departDate: nextSeg.departDate,
+                      passengers: flightSearchParams.passengers,
+                    });
+                    const res = await flightService.searchFlights({
+                      from: nextSeg.from,
+                      to: nextSeg.to,
+                      departDate: nextSeg.departDate,
+                      passengers: flightSearchParams.passengers,
+                    });
+                    if (res && res.success) {
+                      setFlightSearchResults(res);
+                      
+                      const updatedHistory = [...multiCityResultsHistory];
+                      updatedHistory[nextStep] = res;
+                      setMultiCityResultsHistory(updatedHistory);
+                      
+                      setMultiCityStep(nextStep);
+                    } else {
+                      Alert.alert('Error', 'Failed to retrieve flights for the next city.');
+                    }
+                  } catch (e: any) {
+                    Alert.alert('Error', e.message || 'Error fetching flights for the next city.');
+                  } finally {
+                    setLoadingReturn(false);
+                  }
+                } else {
+                  const combinedPrice = updatedFlights.reduce((acc, f) => {
+                    const priceVal = parseInt(f.price?.replace(/[^0-9]/g, '') || '0', 10);
+                    return acc + priceVal;
+                  }, 0);
+                  
+                  const combinedFlight = {
+                    ...selectedFlight,
+                    id: updatedFlights.map(f => f.id).join('__'),
+                    isCombinedMultiCity: true,
+                    multiCityFlights: updatedFlights,
+                    multiCityOptions: updatedOptions,
+                    multiCitySessionIds: updatedSessionIds,
+                    multiCityResultsHistory: multiCityResultsHistory,
+                    price: `₹${combinedPrice.toLocaleString()}`,
+                    rawPrice: combinedPrice,
+                  };
+                  setSelectedFlight(combinedFlight);
+                  setSelectedOption(opt);
+                  setSessionId(sessId || sessionId);
+                  setCurrentScreen('passengerDetails');
+                }
+              } else if (searchTripType === 'Round Trip' && roundTripFlowStep === 'outbound') {
                 setSelectedOutboundFlight(selectedFlight);
                 setSelectedOutboundOption(opt);
                 setOutboundSessionId(sessId || sessionId);
@@ -367,6 +455,13 @@ function App() {
           setRoundTripFlowStep('outbound');
         } else {
           setRoundTripFlowStep('none');
+        }
+        if (tripType === 'Multi City') {
+          setMultiCityStep(0);
+          setSelectedMultiCityFlights([]);
+          setSelectedMultiCityOptions([]);
+          setMultiCitySessionIds([]);
+          setMultiCityResultsHistory([results]);
         }
         setCurrentScreen('flightList');
       }}

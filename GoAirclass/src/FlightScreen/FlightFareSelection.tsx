@@ -29,6 +29,8 @@ interface FlightFareSelectionProps {
   onContinue?: (option?: any, sessionId?: string) => void;
   searchResults?: any;
   selectedFlight?: any;
+  tripType?: 'One Way' | 'Round Trip' | 'Multi City';
+  multiCityStep?: number;
 }
 
 export interface FareOption {
@@ -48,9 +50,10 @@ export interface FareOption {
   benefitText?: string;
   cancelRules?: any[];
   dateChangeRules?: any[];
+  availableSeats?: number | null;
 }
 
-export default function FlightFareSelection({ onClose, onContinue, searchResults, selectedFlight }: FlightFareSelectionProps) {
+export default function FlightFareSelection({ onClose, onContinue, searchResults, selectedFlight, tripType, multiCityStep = 0 }: FlightFareSelectionProps) {
   const [fareOptions, setFareOptions] = useState<FareOption[]>([]);
   const [selectedOption, setSelectedOption] = useState<FareOption | null>(null);
   const [searchIntentString, setSearchIntentString] = useState<string>('Select fare');
@@ -69,7 +72,8 @@ export default function FlightFareSelection({ onClose, onContinue, searchResults
 
       const firstIntent = Object.values(searchIntentMap)[0] as any;
       if (firstIntent) {
-        setSearchIntentString(`Select fare for ${firstIntent.origin} → ${firstIntent.destination} | ${firstIntent.departDate}`);
+        const prefix = tripType === 'Multi City' ? `[Trip ${multiCityStep + 1}] ` : '';
+        setSearchIntentString(`${prefix}${firstIntent.origin} → ${firstIntent.destination} | ${firstIntent.departDate}`);
       }
 
       let fareKeys = Object.keys(faresMap).slice(0, 3); // Fallback to first 3
@@ -204,9 +208,25 @@ export default function FlightFareSelection({ onClose, onContinue, searchResults
           const price = `₹${priceVal.toLocaleString('en-IN')}`;
 
           let brandName = fare.fareCategory || 'FARE';
+          let availableSeats = null;
           try {
-            const apiBrand = fare.subTravelOptionFare[0].flightFare[0].identifiers.brandName;
-            if (apiBrand) brandName = apiBrand;
+            const flightFares = fare.subTravelOptionFare?.[0]?.flightFare || [];
+            if (flightFares.length > 0) {
+              const firstFlightFareObj = flightFares[0];
+              const apiBrand = firstFlightFareObj?.identifiers?.brandName;
+              if (apiBrand) brandName = apiBrand;
+              
+              let minSeats: number | null = null;
+              flightFares.forEach((ff: any) => {
+                const apiSeats = ff.identifiers?.availableSeatCount;
+                if (typeof apiSeats === 'number') {
+                  if (minSeats === null || apiSeats < minSeats) {
+                    minSeats = apiSeats;
+                  }
+                }
+              });
+              availableSeats = minSeats;
+            }
           } catch (e) { }
 
           let promoCodeText = '';
@@ -229,6 +249,7 @@ export default function FlightFareSelection({ onClose, onContinue, searchResults
             benefitText: undefined,
             cancelRules,
             dateChangeRules,
+            availableSeats,
           };
         });
       };
@@ -471,7 +492,14 @@ export default function FlightFareSelection({ onClose, onContinue, searchResults
                     <View style={styles.cardHeaderRow}>
                       {/* Left info */}
                       <View style={styles.cardHeaderLeft}>
-                        <Text style={styles.optionTypeTitle}>{option.type}</Text>
+                        <Text style={styles.optionTypeTitle}>
+                          {option.type}
+                          {option.availableSeats !== null && option.availableSeats !== undefined && (
+                            <Text style={{ color: option.availableSeats > 0 ? '#ea580c' : '#dc2626', fontWeight: '800' }}>
+                              {' '}• {option.availableSeats > 0 ? `${option.availableSeats} seat(s) left` : 'Sold Out'}
+                            </Text>
+                          )}
+                        </Text>
                         <View style={styles.priceLineRow}>
                           <Text style={styles.priceText}>{option.price}</Text>
                           {option.originalPrice && (

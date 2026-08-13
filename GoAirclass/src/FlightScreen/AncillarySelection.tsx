@@ -193,7 +193,7 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
       const travelOpts = dataObj.travelOptions || [];
       const subOpts = travelOpts[0]?.subTravelOptions || [];
       const flights = subOpts[0]?.flights || [];
-      const ancillaries = flights[0]?.ancillaries || [];
+      const ancillaries = flights[activeSegmentIndex]?.ancillaries || subOpts[0]?.ancillaries || travelOpts[0]?.ancillaries || [];
 
       const seatAncillary = ancillaries.find((a: any) => a.type === 'SEAT');
       if (!seatAncillary) return [];
@@ -232,7 +232,8 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
       const dataObj = ancillaryData?.data || ancillaryData || {};
       const travelOpts = dataObj.travelOptions || [];
       const subOpts = travelOpts[0]?.subTravelOptions || [];
-      const ancillaries = subOpts[0]?.ancillaries || travelOpts[0]?.ancillaries || [];
+      const flights = subOpts[0]?.flights || [];
+      const ancillaries = flights[activeSegmentIndex]?.ancillaries || subOpts[0]?.ancillaries || travelOpts[0]?.ancillaries || [];
 
       const baggageAncillary = ancillaries.find((a: any) => a.type === 'BAGGAGE');
       if (baggageAncillary?.baggageList?.length > 0) {
@@ -256,7 +257,8 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
       const dataObj = ancillaryData?.data || ancillaryData || {};
       const travelOpts = dataObj.travelOptions || [];
       const subOpts = travelOpts[0]?.subTravelOptions || [];
-      const ancillaries = subOpts[0]?.ancillaries || travelOpts[0]?.ancillaries || [];
+      const flights = subOpts[0]?.flights || [];
+      const ancillaries = flights[activeSegmentIndex]?.ancillaries || subOpts[0]?.ancillaries || travelOpts[0]?.ancillaries || [];
 
       const mealAncillary = ancillaries.find((a: any) => a.type === 'MEAL');
       if (mealAncillary?.mealList?.length > 0) {
@@ -277,6 +279,16 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
     const seats = extractSeats();
     const currentSegment = segments[activeSegmentIndex] || segments[0];
     const currentSelectedSeat = selectedSeatsMap[activeSegmentIndex];
+
+    if (seats.length === 0) {
+      return (
+        <View style={{ padding: 40, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#64748b', textAlign: 'center', fontFamily: FONT_FAMILY, marginTop: 20 }}>
+            ⚠️ Seat selection is not available for this flight segment. You can continue and proceed without selecting a seat.
+          </Text>
+        </View>
+      );
+    }
 
     // Group seats by rowId
     const rowMap: { [rowId: number]: { [colId: string]: any } } = {};

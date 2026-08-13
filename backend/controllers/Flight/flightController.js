@@ -261,13 +261,23 @@ function convertToCleartripSearchPayload(body) {
         });
     }
 
+    const mapCabinType = (cabin) => {
+        if (!cabin) return 'ECONOMY';
+        const c = String(cabin).toUpperCase().trim();
+        if (c.includes('PREMIUM') || c.includes('ECONOMY_PREMIUM')) return 'PREMIUM_ECONOMY';
+        if (c.includes('BUSINESS')) return 'BUSINESS';
+        if (c.includes('FIRST')) return 'FIRST';
+        return 'ECONOMY';
+    };
+    const cabinTypeValue = mapCabinType(body.cabinClass || body.cabinType);
+
     const sectors = [
         {
             index: 1,
             origin: origin,
             destination: destination,
             departDate: departDateStr,
-            cabinType: (body.cabinClass || body.cabinType || 'ECONOMY').toUpperCase(),
+            cabinType: cabinTypeValue,
             paxInfos: paxInfos
         }
     ];
@@ -300,7 +310,7 @@ function convertToCleartripSearchPayload(body) {
                 origin: destination,
                 destination: origin,
                 departDate: returnDateStr,
-                cabinType: (body.cabinClass || body.cabinType || 'ECONOMY').toUpperCase(),
+                cabinType: cabinTypeValue,
                 paxInfos: paxInfos
             });
         }
@@ -424,15 +434,18 @@ function parseFlightListings(data) {
             penaltyIds = fareObj.penaltyIds || [];
         }
 
-        let isRefundable = true;
-        if (penaltyIds.length > 0) {
-            for (const pId of penaltyIds) {
-                const p = penaltiesMap[pId];
-                if (p && p.penaltyType === 'CANCEL') {
-                    if (p.timeLines && p.timeLines.length > 0) {
-                        isRefundable = p.timeLines.some((t) => t.permitted);
-                    } else {
-                        isRefundable = false;
+        let isRefundable = fareObj.refundable;
+        if (isRefundable === undefined) {
+            isRefundable = true;
+            if (penaltyIds.length > 0) {
+                for (const pId of penaltyIds) {
+                    const p = penaltiesMap[pId];
+                    if (p && p.penaltyType === 'CANCEL') {
+                        if (p.timeLines && p.timeLines.length > 0) {
+                            isRefundable = p.timeLines.some((t) => t.permitted);
+                        } else {
+                            isRefundable = false;
+                        }
                     }
                 }
             }
@@ -479,7 +492,13 @@ function parseFlightListings(data) {
         }
 
         const refundableTextStr = isRefundable ? 'Refundable' : 'Non-Refundable';
-        const seatsLeftVal = fareObj.availableSeats ?? 5;
+        let seatsLeftVal = 5;
+        try {
+            const apiSeats = fareObj.subTravelOptionFare?.[0]?.flightFare?.[0]?.identifiers?.availableSeatCount;
+            if (typeof apiSeats === 'number') {
+                seatsLeftVal = apiSeats;
+            }
+        } catch (e) {}
 
         return {
             id: opt.travelOptionId || String(index),
@@ -521,7 +540,7 @@ exports.searchFlights = async (req, res) => {
         const stopsFilter = req.body.stops || 'all';
         const airlinesFilter = req.body.airlines || [];
         const fareTypeFilter = req.body.fareType || 'all';
-        const maxPriceFilter = req.body.maxPrice ? parseFloat(req.body.maxPrice) : 30000;
+        const maxPriceFilter = req.body.maxPrice ? parseFloat(req.body.maxPrice) : 900000;
         const depTimeBucket = req.body.depTimeBucket || 'all';
         const arrTimeBucket = req.body.arrTimeBucket || 'all';
 

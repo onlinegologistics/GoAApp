@@ -57,6 +57,8 @@ export default function PassengerDetails({
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
   const [outboundPreviewData, setOutboundPreviewData] = useState<any>(null);
+  const [multiCityPreviewData, setMultiCityPreviewData] = useState<any[]>([]);
+  const [activeDetailModalIndex, setActiveDetailModalIndex] = useState<number | null>(null);
 
   const outboundPreviewObj = outboundPreviewData?.data || outboundPreviewData || {};
 
@@ -78,7 +80,7 @@ export default function PassengerDetails({
       if (!isNaN(d.getTime())) {
         return d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' });
       }
-    } catch(e) {}
+    } catch (e) { }
     return rawDateStr;
   };
 
@@ -194,30 +196,58 @@ export default function PassengerDetails({
           };
         };
 
-        const retPayload = await buildPreviewPayload(
-          searchResults,
-          selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight : selectedFlight,
-          selectedOption,
-          sessionId
-        );
-        if (retPayload) {
-          const res = await flightService.flightPreview(retPayload);
-          if (res?.data) {
-            setPreviewData(res.data);
-          }
-        }
+        if (selectedFlight?.isCombinedMultiCity && selectedFlight?.multiCityResultsHistory) {
+          const previews = [];
+          for (let i = 0; i < selectedFlight.multiCityFlights.length; i++) {
+            const legFlight = selectedFlight.multiCityFlights[i];
+            const legOption = selectedFlight.multiCityOptions[i];
+            const legSessionId = selectedFlight.multiCitySessionIds[i];
+            const legResults = selectedFlight.multiCityResultsHistory[i];
 
-        if (selectedFlight?.isCombinedRoundTrip && outboundSearchResults) {
-          const outPayload = await buildPreviewPayload(
-            outboundSearchResults,
-            selectedFlight.outboundFlight,
-            outboundOption,
-            outboundSessionId
+            const payload = await buildPreviewPayload(
+              legResults,
+              legFlight,
+              legOption,
+              legSessionId
+            );
+            if (payload) {
+              const res = await flightService.flightPreview(payload);
+              if (res?.data) {
+                previews.push(res.data);
+              } else {
+                previews.push(null);
+              }
+            } else {
+              previews.push(null);
+            }
+          }
+          setMultiCityPreviewData(previews);
+        } else {
+          const retPayload = await buildPreviewPayload(
+            searchResults,
+            selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight : selectedFlight,
+            selectedOption,
+            sessionId
           );
-          if (outPayload) {
-            const outRes = await flightService.flightPreview(outPayload);
-            if (outRes?.data) {
-              setOutboundPreviewData(outRes.data);
+          if (retPayload) {
+            const res = await flightService.flightPreview(retPayload);
+            if (res?.data) {
+              setPreviewData(res.data);
+            }
+          }
+
+          if (selectedFlight?.isCombinedRoundTrip && outboundSearchResults) {
+            const outPayload = await buildPreviewPayload(
+              outboundSearchResults,
+              selectedFlight.outboundFlight,
+              outboundOption,
+              outboundSessionId
+            );
+            if (outPayload) {
+              const outRes = await flightService.flightPreview(outPayload);
+              if (outRes?.data) {
+                setOutboundPreviewData(outRes.data);
+              }
             }
           }
         }
@@ -261,7 +291,7 @@ export default function PassengerDetails({
 
   // Find exact requested fare from preview API (checking requested === true or matching fareId in fareAssociations)
   const allPreviewFares = Object.values(previewFares) as any[];
-  const activePreviewFare = 
+  const activePreviewFare =
     allPreviewFares.find((f: any) => f.requested === true) ||
     assocFaresList.find((f: any) => f.requested === true) ||
     (selectedOption?.fareId ? previewFares[selectedOption.fareId] : null) ||
@@ -271,10 +301,10 @@ export default function PassengerDetails({
 
   // Live Pricing Breakdown from Preview API
   const livePricing = activePreviewFare.pricing;
-  
+
 
   const outboundPreviewFares = outboundPreviewObj.fares || {};
-  const outboundActiveFare = 
+  const outboundActiveFare =
     Object.values(outboundPreviewFares).find((f: any) => f.requested === true) ||
     (outboundOption?.fareId ? outboundPreviewFares[outboundOption.fareId] : null) ||
     Object.values(outboundPreviewFares)[0] ||
@@ -283,21 +313,55 @@ export default function PassengerDetails({
 
   const outboundTotalPrice = outboundPricing?.totalPrice || (outboundOption?.rawPrice ?? selectedFlight?.outboundFlight?.rawPrice ?? 0);
   const returnTotalPrice = livePricing?.totalPrice || (selectedOption?.rawPrice ?? selectedFlight?.returnFlight?.rawPrice ?? 0);
-  const liveTotalPrice = selectedFlight?.isCombinedRoundTrip 
-    ? (outboundTotalPrice + returnTotalPrice)
-    : (livePricing?.totalPrice ?? selectedOption?.rawPrice ?? selectedFlight?.rawPrice ?? 0);
+
+  // Combine Multi-City leg prices dynamically
+  let multiCityLiveTotalPrice = 0;
+  let multiCityLiveBaseFare = 0;
+  let multiCityLiveTax = 0;
+
+  if (selectedFlight?.isCombinedMultiCity && selectedFlight.multiCityFlights) {
+    for (let i = 0; i < selectedFlight.multiCityFlights.length; i++) {
+      const legFlight = selectedFlight.multiCityFlights[i];
+      const legPreview = multiCityPreviewData?.[i];
+      const legOption = selectedFlight.multiCityOptions?.[i];
+
+      const faresMap = (legPreview?.fares || legPreview?.data?.fares || legPreview?.data?.data?.fares) || {};
+      const activeLegFare = Object.values(faresMap).find((f: any) => f.requested === true) || Object.values(faresMap)[0] as any;
+
+      if (activeLegFare?.pricing) {
+        multiCityLiveTotalPrice += activeLegFare.pricing.totalPrice || 0;
+        multiCityLiveBaseFare += activeLegFare.pricing.totalBaseFare || 0;
+        multiCityLiveTax += activeLegFare.pricing.totalTax || 0;
+      } else {
+        const priceVal = legOption?.rawPrice || parseInt(legOption?.price?.replace(/[^0-9]/g, '') || '0', 10) || legFlight?.rawPrice || 0;
+        multiCityLiveTotalPrice += priceVal;
+        multiCityLiveBaseFare += Math.round(priceVal * 0.85);
+        multiCityLiveTax += Math.round(priceVal * 0.15);
+      }
+    }
+  }
+
+  const liveTotalPrice = selectedFlight?.isCombinedMultiCity
+    ? multiCityLiveTotalPrice
+    : (selectedFlight?.isCombinedRoundTrip
+      ? (outboundTotalPrice + returnTotalPrice)
+      : (livePricing?.totalPrice ?? selectedOption?.rawPrice ?? selectedFlight?.rawPrice ?? 0));
 
   const outboundBaseFare = outboundPricing?.totalBaseFare || outboundTotalPrice;
   const returnBaseFare = livePricing?.totalBaseFare || returnTotalPrice;
-  const liveBaseFare = selectedFlight?.isCombinedRoundTrip
-    ? (outboundBaseFare + returnBaseFare)
-    : (livePricing?.totalBaseFare ?? selectedOption?.rawPrice ?? selectedFlight?.rawPrice ?? 0);
+  const liveBaseFare = selectedFlight?.isCombinedMultiCity
+    ? multiCityLiveBaseFare
+    : (selectedFlight?.isCombinedRoundTrip
+      ? (outboundBaseFare + returnBaseFare)
+      : (livePricing?.totalBaseFare ?? selectedOption?.rawPrice ?? selectedFlight?.rawPrice ?? 0));
 
   const outboundTax = outboundPricing?.totalTax || 0;
   const returnTax = livePricing?.totalTax || 0;
-  const liveTax = selectedFlight?.isCombinedRoundTrip
-    ? (outboundTax + returnTax)
-    : (livePricing?.totalTax ?? 0);
+  const liveTax = selectedFlight?.isCombinedMultiCity
+    ? multiCityLiveTax
+    : (selectedFlight?.isCombinedRoundTrip
+      ? (outboundTax + returnTax)
+      : (livePricing?.totalTax ?? 0));
 
   // Live Flights sequence from Preview API (subTravelOptions.sequenceToFlightIdMap)
   const previewSubOptions = previewDataObj.subTravelOptions || {};
@@ -323,27 +387,35 @@ export default function PassengerDetails({
 
 
   const rawOrigin = firstSubOpt.originAirportCode ||
-                    firstFlightObj.departureAirport?.code ||
-                    selectedFlight?.departureCode ||
-                    selectedFlight?.originCode ||
-                    selectedFlight?.fromCode ||
-                    selectedFlight?.from ||
-                    selectedFlight?.origin ||
-                    searchResults?.data?.searchIntent?.J1?.origin ||
-                    '';
+    firstFlightObj.departureAirport?.code ||
+    selectedFlight?.departureCode ||
+    selectedFlight?.originCode ||
+    selectedFlight?.fromCode ||
+    selectedFlight?.from ||
+    selectedFlight?.origin ||
+    searchResults?.data?.searchIntent?.J1?.origin ||
+    '';
 
   const rawDest = firstSubOpt.destinationAirportCode ||
-                  lastFlightObj.arrivalAirport?.code ||
-                  selectedFlight?.arrivalCode ||
-                  selectedFlight?.destCode ||
-                  selectedFlight?.toCode ||
-                  selectedFlight?.to ||
-                  selectedFlight?.destination ||
-                  searchResults?.data?.searchIntent?.J1?.destination ||
-                  '';
+    lastFlightObj.arrivalAirport?.code ||
+    selectedFlight?.arrivalCode ||
+    selectedFlight?.destCode ||
+    selectedFlight?.toCode ||
+    selectedFlight?.to ||
+    selectedFlight?.destination ||
+    searchResults?.data?.searchIntent?.J1?.destination ||
+    '';
 
-  const originCode = selectedFlight?.isCombinedRoundTrip ? cleanCode(flightSearchParams?.from) : cleanCode(rawOrigin);
-  const destCode = selectedFlight?.isCombinedRoundTrip ? cleanCode(flightSearchParams?.to) : cleanCode(rawDest);
+  let originCode = selectedFlight?.isCombinedRoundTrip ? cleanCode(flightSearchParams?.from) : cleanCode(rawOrigin);
+  let destCode = selectedFlight?.isCombinedRoundTrip ? cleanCode(flightSearchParams?.to) : cleanCode(rawDest);
+
+  if (selectedFlight?.isCombinedMultiCity && selectedFlight?.multiCityFlights) {
+    const codes = selectedFlight.multiCityFlights.map((f: any) => cleanCode(f.departureCode || f.fromCode || f.from || f.originCode));
+    const lastDest = cleanCode(selectedFlight.multiCityFlights[selectedFlight.multiCityFlights.length - 1].arrivalCode || selectedFlight.multiCityFlights[selectedFlight.multiCityFlights.length - 1].toCode || selectedFlight.multiCityFlights[selectedFlight.multiCityFlights.length - 1].to || selectedFlight.multiCityFlights[selectedFlight.multiCityFlights.length - 1].destCode);
+    codes.push(lastDest);
+    originCode = codes.join(' → ');
+    destCode = '';
+  }
 
   const liveDepTime = firstFlightObj.departureAirport?.time
     ? new Date(firstFlightObj.departureAirport.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -468,32 +540,236 @@ export default function PassengerDetails({
     });
   };
 
+  const getLegPreviewInfo = (idx: number) => {
+    const legFlight = selectedFlight?.multiCityFlights?.[idx];
+    const legPreview = multiCityPreviewData?.[idx];
+
+    // Robust nesting finder helper
+    const getNestedField = (obj: any, field: string) => {
+      if (!obj) return null;
+      if (obj[field]) return obj[field];
+      if (obj.data?.[field]) return obj.data[field];
+      if (obj.data?.data?.[field]) return obj.data.data[field];
+      return null;
+    };
+
+    const legResults = selectedFlight?.multiCityResultsHistory?.[idx];
+    const searchMetaData = getNestedField(legResults, 'metaData') || {};
+    const searchFlightsMap = getNestedField(legResults, 'flights') || {};
+    const searchSubTravelOptions = getNestedField(legResults, 'subTravelOptions') || {};
+
+    const flightsMap = {
+      ...searchFlightsMap,
+      ...(getNestedField(legPreview, 'flights') || {}),
+    };
+
+    const subTravelOptions = {
+      ...searchSubTravelOptions,
+      ...(getNestedField(legPreview, 'subTravelOptions') || {}),
+    };
+
+    const faresMap = getNestedField(legPreview, 'fares') || {};
+    const baggageMap = getNestedField(legPreview, 'baggageAllowances') || {};
+    const previewMetaData = getNestedField(legPreview, 'metaData') || {};
+    let dynamicCabinBag = '';
+    let dynamicCheckinBag = '';
+
+    let brandName = 'REGULAR';
+    let cabin = 'ECONOMY';
+    let totalFare = legFlight?.rawPrice || 0;
+    let refundable = 'Refundable';
+    let seatsLeft = null;
+    let isBaggageAvailable = 'Available';
+    let isMealAvailable = 'Available';
+    let isSeatAvailable = 'Available';
+
+    try {
+      const activeLegFare = Object.values(faresMap).find((f: any) => f.requested === true) || Object.values(faresMap)[0] as any;
+      if (activeLegFare) {
+        const flightFareObj = activeLegFare.subTravelOptionFare?.[0]?.flightFare?.[0] || {};
+        let bagId = null;
+
+        if (activeLegFare.subTravelOptionBenefits) {
+          const travelOption = Object.values(activeLegFare.subTravelOptionBenefits)[0] as any;
+          const flightBens = travelOption?.benefits?.flightBenefits;
+          if (flightBens) {
+            const firstFlight = Object.values(flightBens)[0] as any;
+            bagId = firstFlight?.baggageAllowances?.[0]?.baggageAllowanceId;
+          }
+        }
+
+        if (!bagId && flightFareObj.baggageAllowances?.length > 0) {
+          bagId = flightFareObj.baggageAllowances[0].baggageAllowanceId;
+        }
+
+        let bagArr: any[] = [];
+        if (bagId) {
+          bagArr = baggageMap[bagId] || [];
+        }
+
+        const cabinInfo = bagArr.find((b: any) => b.type === 'BAGGAGE_CABIN');
+        const checkinInfo = bagArr.find((b: any) => b.type === 'BAGGAGE_CHECK_IN');
+        if (cabinInfo && cabinInfo.allowedBaggages?.length > 0) {
+          dynamicCabinBag = `${cabinInfo.allowedBaggages[0].quantity} ${cabinInfo.allowedBaggages[0].unit} Cabin, ${cabinInfo.allowedBaggages[0].piece} Pc`;
+        }
+        if (checkinInfo && checkinInfo.allowedBaggages?.length > 0) {
+          dynamicCheckinBag = `${checkinInfo.allowedBaggages[0].quantity} ${checkinInfo.allowedBaggages[0].unit} Check-in, ${checkinInfo.allowedBaggages[0].piece} Pc`;
+        }
+
+        brandName = flightFareObj.identifiers?.brandName || activeLegFare.fareGroup || 'REGULAR';
+        cabin = flightFareObj.identifiers?.cabinType || 'ECONOMY';
+        totalFare = activeLegFare.pricing?.totalPrice || totalFare;
+        refundable = activeLegFare.refundable ? 'Refundable' : 'Non-refundable';
+
+        let minAvailSeats: number | null = null;
+        const flightFaresList = activeLegFare.subTravelOptionFare?.[0]?.flightFare || [];
+        flightFaresList.forEach((ff: any) => {
+          const apiSeats = ff.identifiers?.availableSeatCount;
+          if (typeof apiSeats === 'number') {
+            if (minAvailSeats === null || apiSeats < minAvailSeats) {
+              minAvailSeats = apiSeats;
+            }
+          }
+        });
+        if (minAvailSeats !== null) {
+          seatsLeft = minAvailSeats;
+        }
+
+        if (activeLegFare.data) {
+          isBaggageAvailable = activeLegFare.data.isBaggageAvailable ? 'Available' : 'Not Available';
+          isMealAvailable = activeLegFare.data.isMealAvailable ? 'Available' : 'Not Available';
+          isSeatAvailable = activeLegFare.data.isSeatAvailable ? 'Available' : 'Not Available';
+        }
+      }
+    } catch (e) { }
+
+    const searchAirportsMap = searchMetaData.airportDetail?.airports || {};
+    const previewAirportsMap = previewMetaData.airportDetail?.airports || {};
+
+    const airportsMap = {
+      ...searchAirportsMap,
+      ...previewAirportsMap,
+    };
+
+    // Live flight info extraction
+    const subOpts = subTravelOptions as any;
+    const sortedIds: string[] = Object.keys(subOpts).length > 0
+      ? Object.keys(subOpts[Object.keys(subOpts)[0]]?.sequenceToFlightIdMap || {})
+        .sort((a, b) => Number(a) - Number(b))
+        .map(seqKey => subOpts[Object.keys(subOpts)[0]]?.sequenceToFlightIdMap[seqKey])
+        .filter(Boolean)
+      : Object.keys(flightsMap);
+
+    const firstFlt = flightsMap[sortedIds[0]] || {};
+    const lastFlt = flightsMap[sortedIds[sortedIds.length - 1]] || {};
+
+    const liveAirlineCode = firstFlt.airlineCode || firstFlt.operatingAirlineCode || legFlight?.logoChar || '';
+    const airlinesMap = {
+      ...(searchMetaData.airlineDetail?.airlines || {}),
+      ...(previewMetaData.airlineDetail?.airlines || {}),
+    };
+    const liveAirlineName = airlinesMap[liveAirlineCode]?.name || legFlight?.airline || '';
+    const liveFltCode = firstFlt.fltNo ? `${liveAirlineCode}-${firstFlt.fltNo}` : (legFlight?.code || '');
+
+    const liveDepTime = firstFlt.departureAirport?.time
+      ? new Date(firstFlt.departureAirport.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+      : legFlight?.depTime || '';
+
+    const liveArrTime = lastFlt.arrivalAirport?.time
+      ? new Date(lastFlt.arrivalAirport.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+      : legFlight?.arrTime || '';
+
+    const liveDepDate = firstFlt.departureAirport?.time
+      ? new Date(firstFlt.departureAirport.time).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })
+      : (flightSearchParams?.segments?.[idx] ? formatDateString(flightSearchParams.segments[idx].departDate) : '');
+
+    const liveArrDate = lastFlt.arrivalAirport?.time
+      ? new Date(lastFlt.arrivalAirport.time).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })
+      : liveDepDate;
+
+    const liveDurationStr = (Object.values(subOpts)[0] as any)?.duration || legFlight?.duration || '';
+    const liveStopsText = sortedIds.length > 1 ? `${sortedIds.length - 1} stop` : (sortedIds.length === 1 ? 'Non-stop' : '');
+
+    const depCode = cleanCode(firstFlt.departureAirport?.code || String(legFlight?.id || '').split('-')[2] || '');
+    const arrCode = cleanCode(lastFlt.arrivalAirport?.code || String(legFlight?.id || '').split('-')[3] || '');
+
+    const depAirportName = airportsMap[depCode]?.name || `${depCode} Airport`;
+    const arrAirportName = airportsMap[arrCode]?.name || `${arrCode} Airport`;
+    const depCity = airportsMap[depCode]?.city || depCode;
+    const arrCity = airportsMap[arrCode]?.city || arrCode;
+
+    const legSegments = buildSegmentsList(
+      { subTravelOptions: subOpts },
+      flightsMap,
+      airlinesMap,
+      airportsMap,
+      liveAirlineName,
+      liveFltCode,
+      liveDepTime,
+      liveArrTime,
+      liveDepDate
+    );
+
+    const selectedLegOption = selectedFlight?.multiCityOptions?.[idx];
+    const cabinBag = dynamicCabinBag || selectedLegOption?.cabinBaggage || legFlight?.baggageCabin || '';
+    const checkInBag = dynamicCheckinBag || selectedLegOption?.checkInBaggage || legFlight?.baggageCheckin || '';
+
+    return {
+      cabinBag,
+      checkInBag,
+      depCode,
+      arrCode,
+      depAirportName,
+      arrAirportName,
+      depCity,
+      arrCity,
+      segmentsList: legSegments,
+      liveAirlineName,
+      liveAirlineCode,
+      liveFltCode,
+      liveDepTime,
+      liveArrTime,
+      liveDepDate,
+      liveArrDate,
+      liveDurationStr,
+      liveStopsText,
+      brandName,
+      cabin,
+      totalFare,
+      refundable,
+      seatsLeft,
+      isBaggageAvailable,
+      isMealAvailable,
+      isSeatAvailable,
+    };
+  };
+
   const outboundSegs = selectedFlight?.isCombinedRoundTrip && outboundPreviewObj
     ? buildSegmentsList(
-        outboundPreviewObj,
-        outboundPreviewObj.flights || {},
-        outboundPreviewObj.metaData?.airlineDetail?.airlines || {},
-        outboundPreviewObj.metaData?.airportDetail?.airports || {},
-        selectedFlight.outboundFlight?.airline,
-        selectedFlight.outboundFlight?.code,
-        selectedFlight.outboundFlight?.depTime,
-        selectedFlight.outboundFlight?.arrTime,
-        outboundDate
-      ).map(seg => ({ ...seg, isReturn: false }))
+      outboundPreviewObj,
+      outboundPreviewObj.flights || {},
+      outboundPreviewObj.metaData?.airlineDetail?.airlines || {},
+      outboundPreviewObj.metaData?.airportDetail?.airports || {},
+      selectedFlight.outboundFlight?.airline,
+      selectedFlight.outboundFlight?.code,
+      selectedFlight.outboundFlight?.depTime,
+      selectedFlight.outboundFlight?.arrTime,
+      outboundDate
+    ).map(seg => ({ ...seg, isReturn: false }))
     : [];
 
   const returnSegs = previewDataObj
     ? buildSegmentsList(
-        previewDataObj,
-        previewFlights || {},
-        previewAirlinesMap || {},
-        previewAirportsMap || {},
-        selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight?.airline : airlineName,
-        selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight?.code : flightCode,
-        selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight?.depTime : depTime,
-        selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight?.arrTime : arrTime,
-        selectedFlight?.isCombinedRoundTrip ? returnDateVal : headerDate
-      ).map(seg => ({ ...seg, isReturn: selectedFlight?.isCombinedRoundTrip ? true : false }))
+      previewDataObj,
+      previewFlights || {},
+      previewAirlinesMap || {},
+      previewAirportsMap || {},
+      selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight?.airline : airlineName,
+      selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight?.code : flightCode,
+      selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight?.depTime : depTime,
+      selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight?.arrTime : arrTime,
+      selectedFlight?.isCombinedRoundTrip ? returnDateVal : headerDate
+    ).map(seg => ({ ...seg, isReturn: selectedFlight?.isCombinedRoundTrip ? true : false }))
     : [];
 
   const segmentsList = selectedFlight?.isCombinedRoundTrip ? [...outboundSegs, ...returnSegs] : returnSegs;
@@ -518,10 +794,11 @@ export default function PassengerDetails({
         }
       });
     }
-  } catch (e) {}
+  } catch (e) { }
 
-  const cabinBag = dynamicCabinBag || selectedOption?.cabinBaggage || selectedFlight?.baggageCabin || '';
-  const checkInBag = dynamicCheckinBag || selectedOption?.checkInBaggage || selectedFlight?.baggageCheckin || '';
+  const isPreviewLoaded = !!previewDataObj;
+  const cabinBag = isPreviewLoaded ? dynamicCabinBag : (selectedOption?.cabinBaggage || selectedFlight?.baggageCabin || '');
+  const checkInBag = isPreviewLoaded ? dynamicCheckinBag : (selectedOption?.checkInBaggage || selectedFlight?.baggageCheckin || '');
 
   // Selected Add-ons Price State (Seats / Meals / Baggage)
   const [addonPrice, setAddonPrice] = useState(0);
@@ -551,12 +828,14 @@ export default function PassengerDetails({
   // Dropdown selectors modal/states
   const [showTitlePicker, setShowTitlePicker] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
-  
+
   // Ancillary Modal State
-  const [showAncillaries, setShowAncillaries] = useState(false);
+   const [showAncillaries, setShowAncillaries] = useState(false);
   const [outboundAncillaries, setOutboundAncillaries] = useState<any>(null);
   const [returnAncillaries, setReturnAncillaries] = useState<any>(null);
   const [ancillaryStep, setAncillaryStep] = useState<'outbound' | 'return' | null>(null);
+  const [activeMultiCityAncillaryIndex, setActiveMultiCityAncillaryIndex] = useState<number | null>(null);
+  const [multiCityAncillariesList, setMultiCityAncillariesList] = useState<any[]>([]);
 
   // Handle Android hardware back button
   useEffect(() => {
@@ -573,6 +852,7 @@ export default function PassengerDetails({
     return () => backHandler.remove();
   }, [onBack]);
 
+  const [multiCityHoldResults, setMultiCityHoldResults] = useState<any[]>([]);
   // Hold Flight State
   const [holdingFlight, setHoldingFlight] = useState(false);
   const [outboundHoldResult, setOutboundHoldResult] = useState<any>(null);
@@ -585,7 +865,7 @@ export default function PassengerDetails({
 
       const formattedTitle = title ? title.toUpperCase() : 'MR';
       const formattedGender = (gender || 'MALE').toUpperCase() === 'FEMALE' ? 'FEMALE' : 'MALE';
-      
+
       let formattedDob = '1997-01-01';
       if (dob) {
         const parts = dob.split('/');
@@ -696,7 +976,7 @@ export default function PassengerDetails({
           outboundAncillariesSelected
         );
         const outRes = await flightService.holdFlight(outboundPayload);
-        
+
         // Hold Return
         console.log('[PassengerDetails] Holding Return flight...');
         const returnPayload = buildHoldPayload(
@@ -736,6 +1016,135 @@ export default function PassengerDetails({
     }
   };
 
+  const handleExecuteHoldMultiCity = async (ancillariesList: any[]) => {
+    try {
+      setHoldingFlight(true);
+      const results = [];
+      const formattedTitle = title ? title.toUpperCase() : 'MR';
+      const formattedGender = (gender || 'MALE').toUpperCase() === 'FEMALE' ? 'FEMALE' : 'MALE';
+
+      let formattedDob = '1997-01-01';
+      if (dob) {
+        const parts = dob.split('/');
+        if (parts.length === 3) {
+          const [d, m, y] = parts;
+          formattedDob = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+        } else if (dob.includes('-')) {
+          formattedDob = dob;
+        }
+      }
+
+      for (let i = 0; i < selectedFlight.multiCityFlights.length; i++) {
+        const leg = selectedFlight.multiCityFlights[i];
+        const resHistory = selectedFlight.multiCityResultsHistory?.[i];
+        const preview = multiCityPreviewData?.[i];
+        const sess = selectedFlight.multiCitySessionIds?.[i];
+        const opt = selectedFlight.multiCityOptions?.[i];
+        const ancillariesSelected = ancillariesList[i];
+
+        const activeSessionId = sess || preview?.sessionId || resHistory?.sessionId || resHistory?.data?.sessionId || resHistory?.data?.searchId || resHistory?.searchId || '';
+        const activePreviewId = preview?.flightPreviewId || '';
+        let subOptIdKey = leg?.id || '';
+        if (preview?.subTravelOptions && typeof preview.subTravelOptions === 'object') {
+          const keys = Object.keys(preview.subTravelOptions);
+          if (keys.length > 0) {
+            subOptIdKey = keys[0];
+          }
+        }
+        const travelOptId = subOptIdKey;
+        const fareIdVal = opt?.id || opt?.fareId || Object.keys(preview?.fares || {})[0] || '';
+
+        const legFlightIds = subOptIdKey.includes('__') ? subOptIdKey.split('__') : [subOptIdKey];
+
+        const flightAncillariesList = legFlightIds.map((fId: string) => ({
+          flightId: fId,
+          ancillaries: ancillariesSelected?.flightAncillaries || []
+        }));
+
+        const payload = {
+          sessionId: activeSessionId,
+          searchId: resHistory?.data?.searchId || resHistory?.searchId || '',
+          flightPreviewId: activePreviewId,
+          previewData: preview,
+          travelOptions: [
+            {
+              travelOptionId: travelOptId,
+              subTravelOptions: [
+                {
+                  subTravelType: "FLIGHT",
+                  subTravelOptionId: subOptIdKey,
+                  fareId: fareIdVal
+                }
+              ]
+            }
+          ],
+          passengerInformation: {
+            passengers: [
+              {
+                firstName: firstName.trim(),
+                lastName: lastName.trim(),
+                middleName: "",
+                gender: formattedGender,
+                email: email.trim(),
+                travellerType: "ADT",
+                dob: formattedDob,
+                nationalityCode: "IN",
+                address: {
+                  mobileNumber: mobile.trim(),
+                  countryCode: "91"
+                },
+                title: formattedTitle,
+                subTravelOptionAncillaries: [
+                  {
+                    subTravelOptionId: subOptIdKey,
+                    subTravelType: "FLIGHT",
+                    flightAncillaries: flightAncillariesList,
+                    ancillaries: ancillariesSelected?.ancillaries || []
+                  }
+                ],
+                documents: []
+              }
+            ]
+          },
+          customerInformation: {
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            title: formattedTitle,
+            emailId: email.trim(),
+            address: {
+              countryCode: "91"
+            },
+            phoneNumberDetails: {
+              phoneNumber: mobile.trim(),
+              countryCode: "91"
+            }
+          },
+          metaInformation: {
+            currency: "INR",
+            domain: "IN",
+            sectorType: "DOMESTIC",
+            itineraryId: activeSessionId || "CURRENT_SESSION_ID"
+          }
+        };
+
+        console.log(`[PassengerDetails] Holding Multi-City Leg ${i + 1} of ${selectedFlight.multiCityFlights.length}...`);
+        const holdRes = await flightService.holdFlight(payload);
+        results.push(holdRes?.data || holdRes);
+      }
+
+      setMultiCityHoldResults(results);
+      // Set holdResult to the last hold result to trigger success modal
+      setHoldResult(results[results.length - 1]);
+      setShowHoldSuccessModal(true);
+    } catch (err: any) {
+      console.error('[PassengerDetails] executeHoldMultiCity error:', err);
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to place flight hold';
+      Alert.alert('Hold Booking Error', errMsg);
+    } finally {
+      setHoldingFlight(false);
+    }
+  };
+
   // Book / Ticketing Flight State
   const [bookingFlight, setBookingFlight] = useState(false);
   const [bookResult, setBookResult] = useState<any>(null);
@@ -746,7 +1155,7 @@ export default function PassengerDetails({
       setBookingFlight(true);
 
       const activeSessionId = sessionId || previewDataObj.sessionId || searchResults?.sessionId || searchResults?.data?.sessionId || searchResults?.data?.searchId || searchResults?.searchId || '';
-      
+
       const travelIdFromHold = holdResult?.heldState?.travelIds?.[0] || holdResult?.travelIds?.[0] || holdResult?.travelId;
       const fallbackTravelId = previewDataObj.subTravelOptions?.[0]?.travelOptionId || selectedFlight?.id || 'SPICEJET__OWDELPNQ100SG105e2bab3f27ca6434b8b7dec0c8e5e0ab7exp1786460827992__DC_dc1__SC';
       const travelIdToBook = travelIdFromHold || fallbackTravelId;
@@ -754,7 +1163,7 @@ export default function PassengerDetails({
       // 1. Create Razorpay Payment Order on Backend
       const numericTotal = Number(rawPriceNum) || 5000;
       console.log('[PassengerDetails] Step 1: Creating Razorpay Order for amount:', numericTotal);
-      
+
       let razorpayOrderData: any = null;
       let razorpayData: any = null;
 
@@ -770,7 +1179,7 @@ export default function PassengerDetails({
 
         if (orderRes.data && orderRes.data.success) {
           razorpayOrderData = orderRes.data;
-          
+
           // 2. Open Razorpay Payment SDK Modal
           const options = {
             description: `Flight Ticket - ${originCode} to ${destCode}`,
@@ -817,7 +1226,33 @@ export default function PassengerDetails({
         }
       };
 
-      if (selectedFlight?.isCombinedRoundTrip) {
+      if (selectedFlight?.isCombinedMultiCity) {
+        console.log('[PassengerDetails] Step 3: Booking Multi-City flights...');
+        for (let i = 0; i < selectedFlight.multiCityFlights.length; i++) {
+          const leg = selectedFlight.multiCityFlights[i];
+          const holdRes = multiCityHoldResults[i];
+          const sessId = selectedFlight.multiCitySessionIds?.[i];
+          const travelIdToBookLeg = holdRes?.heldState?.travelIds?.[0] || holdRes?.travelIds?.[0] || holdRes?.travelId || leg.id;
+          
+          const bookPayload = {
+            ...baseBookPayload,
+            sessionId: sessId || holdRes?.sessionId || '',
+            travelIds: [travelIdToBookLeg],
+            flight: leg
+          };
+          console.log(`[PassengerDetails] Booking Multi-City Leg ${i + 1} of ${selectedFlight.multiCityFlights.length}...`);
+          const bookRes = await flightService.bookFlight(bookPayload);
+          if (i === selectedFlight.multiCityFlights.length - 1) {
+            if (bookRes && (bookRes.success || bookRes.data)) {
+              setShowHoldSuccessModal(false);
+              setBookResult(bookRes.data || bookRes);
+              setShowBookSuccessModal(true);
+            } else {
+              Alert.alert('Flight Booking Status', 'One or more Multi-City ticket issuances failed.');
+            }
+          }
+        }
+      } else if (selectedFlight?.isCombinedRoundTrip) {
         // Book Outbound
         const outboundTravelId = outboundHoldResult?.heldState?.travelIds?.[0] || outboundHoldResult?.travelIds?.[0] || outboundHoldResult?.travelId;
         const outboundBookPayload = {
@@ -884,9 +1319,12 @@ export default function PassengerDetails({
       Alert.alert('Required Information', 'Please enter valid Email Address and Mobile Number.');
       return;
     }
-    
-    // Start sequential seat selection
-    if (selectedFlight?.isCombinedRoundTrip) {
+
+    if (selectedFlight?.isCombinedMultiCity) {
+      setMultiCityAncillariesList([]);
+      setActiveMultiCityAncillaryIndex(0);
+      setShowAncillaries(true);
+    } else if (selectedFlight?.isCombinedRoundTrip) {
       setAncillaryStep('outbound');
       setShowAncillaries(true);
     } else {
@@ -898,7 +1336,7 @@ export default function PassengerDetails({
 
   const rawPax = Object.values(searchResults?.data?.searchIntent || searchResults?.searchIntent || {})[0] as any || {};
   const paxList = rawPax.paxInfos || rawPax.paxCriteria || rawPax.paxDetails || [];
-  
+
   let passengerCount = 1;
   if (paxList.length > 0) {
     passengerCount = paxList.reduce((sum: number, p: any) => sum + (p.paxCount || p.count || 0), 0);
@@ -968,7 +1406,179 @@ export default function PassengerDetails({
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
         {/* Flight Details Summary Card */}
-        {selectedFlight?.isCombinedRoundTrip ? (
+        {selectedFlight?.isCombinedMultiCity ? (
+          <View style={{ marginBottom: 12 }}>
+            {selectedFlight.multiCityFlights.map((flight: any, idx: number) => {
+              const info = getLegPreviewInfo(idx);
+              const originCodeVal = info.depCode;
+              const destCodeVal = info.arrCode;
+              return (
+                <View key={idx} style={[styles.card, { marginBottom: 12 }]}>
+                  <View style={styles.flightCardHeader}>
+                    <Image
+                      source={{ uri: `https://images.kiwi.com/airlines/64/${(info.liveAirlineCode || '6E').trim().toUpperCase()}.png` }}
+                      style={{ width: 32, height: 32, borderRadius: 16, marginRight: 10 }}
+                      resizeMode="contain"
+                    />
+                    <View style={styles.flightNumberGroup}>
+                      <Text style={styles.airlineName}>{info.liveAirlineName} • {info.liveFltCode}</Text>
+                      <View style={styles.nonstopTag}>
+                        <Text style={styles.nonstopTagText}>[Trip {idx + 1}] {info.liveStopsText}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.routeDetailsRow}>
+                    <View style={styles.originCol}>
+                      <Text style={styles.cityCodeText}>{originCodeVal}</Text>
+                      <Text style={styles.airportNameText} numberOfLines={2}>{info.depAirportName}</Text>
+                      <Text style={styles.timeText}>{info.liveDepTime}</Text>
+                      <Text style={styles.dateText}>{info.liveDepDate}</Text>
+                    </View>
+                    <View style={styles.durationCol}>
+                      <View style={styles.durationBadge}>
+                        <Text style={styles.clockIcon}>🕒</Text>
+                        <Text style={styles.durationText}>{info.liveDurationStr}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.destCol}>
+                      <Text style={[styles.cityCodeText, { textAlign: 'right' }]}>{destCodeVal}</Text>
+                      <Text style={[styles.airportNameText, { textAlign: 'right' }]} numberOfLines={2}>{info.arrAirportName}</Text>
+                      <Text style={[styles.timeText, { textAlign: 'right' }]}>{info.liveArrTime}</Text>
+                      <Text style={[styles.dateText, { textAlign: 'right' }]}>{info.liveArrDate}</Text>
+                    </View>
+                  </View>
+
+                  {/* Baggage Info Grid */}
+                  <View style={styles.baggageRow}>
+                    <View style={styles.baggageItem}>
+                      <Text style={styles.baggageIcon}>🧳</Text>
+                      <View>
+                        <Text style={styles.baggageTitle}>Cabin Baggage</Text>
+                        <Text style={styles.baggageValue}>{info.cabinBag}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.baggageDivider} />
+                    <View style={styles.baggageItem}>
+                      <Text style={styles.baggageIcon}>🧳</Text>
+                      <View>
+                        <Text style={styles.baggageTitle}>Check-in Baggage</Text>
+                        <Text style={styles.baggageValue}>{info.checkInBag}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Detailed Fare & Availability Grid */}
+                  <View style={{ backgroundColor: '#f8fafc', padding: 12, borderRadius: 8, marginTop: 12, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                    <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#1e293b', marginBottom: 8 }}>Ticket & Fare Information</Text>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>Fare Type / Brand:</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#334155' }}>{info.brandName}</Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>Cabin Class:</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#334155' }}>{info.cabin}</Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>Departure Airport / City:</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#334155', textAlign: 'right', flex: 1, marginLeft: 10 }}>{info.depAirportName} ({info.depCity})</Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>Arrival Airport / City:</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#334155', textAlign: 'right', flex: 1, marginLeft: 10 }}>{info.arrAirportName} ({info.arrCity})</Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>Refundability:</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: info.refundable === 'Refundable' ? '#16a34a' : '#dc2626' }}>{info.refundable}</Text>
+                    </View>
+
+                    {info.seatsLeft != null && (
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          marginBottom: 4,
+                        }}
+                      >
+                        <Text style={{ fontSize: 12, color: '#64748b' }}>
+                          Seats Left:
+                        </Text>
+
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontWeight: '600',
+                            color: '#e11d48',
+                          }}
+                        >
+                          {info.seatsLeft > 0
+                            ? `${info.seatsLeft} seat(s) left`
+                            : 'Sold Out'}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>Baggage Availability:</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#334155' }}>{info.isBaggageAvailable}</Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>Meal Availability:</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#334155' }}>{info.isMealAvailable}</Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>Seat Selection Availability:</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#334155' }}>{info.isSeatAvailable}</Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#e2e8f0' }}>
+                      <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#1e293b' }}>Total Fare:</Text>
+                      <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#0f172a' }}>₹{info.totalFare.toLocaleString()}</Text>
+                    </View>
+                  </View>
+
+                  {/* View Detailed Information Toggle Button */}
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 12, marginTop: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' }}
+                    onPress={() => setActiveDetailModalIndex(idx)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: '#2563eb' }}>
+                      View detailed information
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#2563eb', marginLeft: 6, fontWeight: 'bold' }}>
+                      ∨
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Flight Details Modal for this specific leg */}
+                  <FlightDetailsModal
+                    visible={activeDetailModalIndex === idx}
+                    onClose={() => setActiveDetailModalIndex(null)}
+                    segmentsList={info.segmentsList}
+                    airlineName={info.liveAirlineName}
+                    airlineCode={info.liveAirlineCode}
+                    originCity={info.depCity}
+                    destCity={info.arrCity}
+                    headerDate={info.liveDepDate}
+                    originCode={originCodeVal}
+                    destCode={destCodeVal}
+                    totalDuration={info.liveDurationStr}
+                    stopsText={info.liveStopsText}
+                    logoBg={flight.logoBg || '#0f172a'}
+                    logoChar={info.liveAirlineCode}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        ) : selectedFlight?.isCombinedRoundTrip ? (
           <View style={{ marginBottom: 12 }}>
             {/* Outbound Card */}
             <View style={[styles.card, { marginBottom: 12 }]}>
@@ -1492,16 +2102,36 @@ export default function PassengerDetails({
       </View>
 
       {/* Ancillary Selection Modal */}
-      <AncillarySelection 
+      <AncillarySelection
         visible={showAncillaries}
         onClose={() => {
           setShowAncillaries(false);
           setAncillaryStep(null);
+          setActiveMultiCityAncillaryIndex(null);
         }}
         onConfirm={(selected) => {
-          if (ancillaryStep === 'outbound') {
+          if (selectedFlight?.isCombinedMultiCity) {
+            const nextList = [...multiCityAncillariesList];
+            nextList[activeMultiCityAncillaryIndex ?? 0] = selected;
+            setMultiCityAncillariesList(nextList);
+
+            const nextIndex = (activeMultiCityAncillaryIndex ?? 0) + 1;
+            const totalLegs = selectedFlight.multiCityFlights?.length || 0;
+
+            setShowAncillaries(false);
+            if (nextIndex < totalLegs) {
+              setTimeout(() => {
+                setActiveMultiCityAncillaryIndex(nextIndex);
+                setShowAncillaries(true);
+              }, 300);
+            } else {
+              setActiveMultiCityAncillaryIndex(null);
+              const sum = nextList.reduce((acc, item) => acc + (item?.totalAddonPrice || 0), 0);
+              setAddonPrice(sum);
+              handleExecuteHoldMultiCity(nextList);
+            }
+          } else if (ancillaryStep === 'outbound') {
             setOutboundAncillaries(selected);
-            // Close modal briefly to reset content, then open Return leg selection
             setShowAncillaries(false);
             setTimeout(() => {
               setAncillaryStep('return');
@@ -1511,27 +2141,38 @@ export default function PassengerDetails({
             setReturnAncillaries(selected);
             setShowAncillaries(false);
             setAncillaryStep(null);
-            
+
             const outSum = outboundAncillaries?.totalAddonPrice || 0;
             const retSum = selected?.totalAddonPrice || 0;
             setAddonPrice(outSum + retSum);
 
-            // Execute concurrent holds sequentially
             handleExecuteHold(outboundAncillaries, selected);
           }
         }}
-        flightPreviewId={ancillaryStep === 'outbound' ? outboundPreviewObj?.flightPreviewId : previewDataObj?.flightPreviewId}
-        subTravelOptions={ancillaryStep === 'outbound' ? outboundPreviewObj?.subTravelOptions : previewDataObj?.subTravelOptions}
-        searchIntent={ancillaryStep === 'outbound' ? (outboundPreviewObj?.searchIntent || 'BLR_BOM') : (previewDataObj?.searchIntent || 'BOM_BLR')}
+        flightPreviewId={
+          selectedFlight?.isCombinedMultiCity
+            ? multiCityPreviewData?.[activeMultiCityAncillaryIndex ?? 0]?.flightPreviewId
+            : (ancillaryStep === 'outbound' ? outboundPreviewObj?.flightPreviewId : previewDataObj?.flightPreviewId)
+        }
+        subTravelOptions={
+          selectedFlight?.isCombinedMultiCity
+            ? multiCityPreviewData?.[activeMultiCityAncillaryIndex ?? 0]?.subTravelOptions
+            : (ancillaryStep === 'outbound' ? outboundPreviewObj?.subTravelOptions : previewDataObj?.subTravelOptions)
+        }
+        searchIntent={
+          selectedFlight?.isCombinedMultiCity
+            ? `${selectedFlight.multiCityFlights?.[activeMultiCityAncillaryIndex ?? 0]?.departureCode || 'BOM'}_${selectedFlight.multiCityFlights?.[activeMultiCityAncillaryIndex ?? 0]?.arrivalCode || 'DEL'}`
+            : (ancillaryStep === 'outbound' ? (outboundPreviewObj?.searchIntent || 'BLR_BOM') : (previewDataObj?.searchIntent || 'BOM_BLR'))
+        }
         sessionId={
-          ancillaryStep === 'outbound'
-            ? (outboundSessionId || outboundPreviewObj?.sessionId || outboundSearchResults?.sessionId || '')
-            : (sessionId || previewDataObj?.sessionId || searchResults?.sessionId || '')
+          selectedFlight?.isCombinedMultiCity
+            ? selectedFlight.multiCitySessionIds?.[activeMultiCityAncillaryIndex ?? 0]
+            : (ancillaryStep === 'outbound' ? outboundSessionId : sessionId)
         }
         fareId={
-          ancillaryStep === 'outbound'
-            ? (outboundActiveFare?.fareId || Object.keys(outboundPreviewFares || {})[0] || '')
-            : (activePreviewFare?.fareId || Object.keys(previewFares || {})[0] || '')
+          selectedFlight?.isCombinedMultiCity
+            ? selectedFlight.multiCityOptions?.[activeMultiCityAncillaryIndex ?? 0]?.id
+            : (ancillaryStep === 'outbound' ? outboundOption?.id : selectedOption?.id)
         }
       />
 
@@ -1571,7 +2212,7 @@ export default function PassengerDetails({
               </View>
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={{ width: '100%', backgroundColor: '#2563eb', paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
               onPress={handleExecuteBook}
               activeOpacity={0.8}
@@ -1631,7 +2272,7 @@ export default function PassengerDetails({
               </View>
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={{ width: '100%', backgroundColor: '#16a34a', paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
               onPress={() => {
                 setShowBookSuccessModal(false);
