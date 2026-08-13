@@ -52,6 +52,9 @@ router.post('/benefits', flightController.getBenefits);
 // Route for fetching complete trip details by trip ID
 router.get('/trip/:tripId', flightController.getTripDetails);
 
+// Route for downloading flight ticket receipt
+router.get('/trip/:tripId/download-receipt', authMiddleware, flightController.downloadFlightReceipt);
+
 // Route for retrieving user flight bookings
 router.get('/my-bookings', authMiddleware, flightController.getUserFlightBookings);
 

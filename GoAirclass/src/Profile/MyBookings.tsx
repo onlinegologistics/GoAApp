@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -14,9 +14,47 @@ import {
   BackHandler,
   Modal,
   Linking,
+  Animated,
 } from 'react-native';
 import { hotelService, flightService } from '../api';
 import BookingDetails from './BookingDetails';
+import { BASE_URL, getAuthToken } from '../api/apiClient';
+
+const Skeleton = ({ width, height, borderRadius = 8, style = {} }: any) => {
+  const opacity = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.3,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [opacity]);
+
+  return (
+    <Animated.View
+      style={[
+        {
+          width,
+          height,
+          borderRadius,
+          backgroundColor: '#e2e8f0',
+          opacity,
+        },
+        style,
+      ]}
+    />
+  );
+};
 
 const FONT_FAMILY = 'Outfit-Regular';
 const FONT_BOLD = 'Outfit-Bold';
@@ -36,6 +74,12 @@ export default function MyBookings({ onBack }: MyBookingsProps) {
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [selectedFlightTicket, setSelectedFlightTicket] = useState<any>(null);
   const [loadingTicket, setLoadingTicket] = useState(false);
+  const [cancellingFlight, setCancellingFlight] = useState(false);
+  const [reasonsModalVisible, setReasonsModalVisible] = useState(false);
+  const [cancelReasonsList, setCancelReasonsList] = useState<any[]>([]);
+  const [refundPreview, setRefundPreview] = useState<any>(null);
+  const [loadingRefundPreview, setLoadingRefundPreview] = useState(false);
+  const [selectedReasonCode, setSelectedReasonCode] = useState<string | null>(null);
 
   useEffect(() => {
     const handleBackPress = () => {
@@ -57,27 +101,28 @@ export default function MyBookings({ onBack }: MyBookingsProps) {
     };
   }, [selectedTripId, selectedFlightTicket, onBack]);
 
-  useEffect(() => {
-    const fetchAllBookings = async () => {
-      setLoading(true);
-      try {
-        const [hotelRes, flightRes] = await Promise.allSettled([
-          hotelService.getMyBookings(),
-          flightService.getMyBookings(),
-        ]);
+  const fetchAllBookings = async () => {
+    setLoading(true);
+    try {
+      const [hotelRes, flightRes] = await Promise.allSettled([
+        hotelService.getMyBookings(),
+        flightService.getMyBookings(),
+      ]);
 
-        if (hotelRes.status === 'fulfilled' && hotelRes.value?.success) {
-          setHotelBookings(hotelRes.value.bookings || []);
-        }
-        if (flightRes.status === 'fulfilled' && flightRes.value?.success) {
-          setFlightBookings(flightRes.value.bookings || []);
-        }
-      } catch (err) {
-        console.error('Failed to load user bookings:', err);
-      } finally {
-        setLoading(false);
+      if (hotelRes.status === 'fulfilled' && hotelRes.value?.success) {
+        setHotelBookings(hotelRes.value.bookings || []);
       }
-    };
+      if (flightRes.status === 'fulfilled' && flightRes.value?.success) {
+        setFlightBookings(flightRes.value.bookings || []);
+      }
+    } catch (err) {
+      console.error('Failed to load user bookings:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchAllBookings();
   }, []);
 
@@ -86,9 +131,10 @@ export default function MyBookings({ onBack }: MyBookingsProps) {
   };
 
   if (selectedTripId) {
-    if (activeCategory === 'Hotel') {
-      return <BookingDetails tripId={selectedTripId} onBack={() => setSelectedTripId(null)} />;
-    }
+    return <BookingDetails tripId={selectedTripId} category={activeCategory} onBack={() => {
+      setSelectedTripId(null);
+      fetchAllBookings();
+    }} />;
   }
 
   if (selectedFlightTicket) {
@@ -100,7 +146,122 @@ export default function MyBookings({ onBack }: MyBookingsProps) {
     const paxList = jd.traveller_details || selectedFlightTicket.passengers || [];
 
     const tripId = bd.trip_id || selectedFlightTicket.tripId || 'N/A';
-    const statusVal = bd.booking_status || selectedFlightTicket.bookingStatus || 'CONFIRMED';
+    const handleDownloadFlight = async () => {
+      try {
+        const token = getAuthToken();
+        const downloadUrl = `${BASE_URL}/flights/trip/${tripId}/download-receipt?token=${token || ''}`;
+        console.log('Opening flight ticket download url:', downloadUrl);
+        const supported = await Linking.canOpenURL(downloadUrl);
+        if (supported) {
+          await Linking.openURL(downloadUrl);
+        } else {
+          Alert.alert('Error', 'Unable to open download link in default browser.');
+        }
+      } catch (err: any) {
+        console.error('Download ticket error:', err);
+        Alert.alert('Error', err.message || 'Failed to download flight ticket.');
+      }
+    };
+    const handleCancelFlight = async () => {
+      console.log('[handleCancelFlight] Button clicked. tripId:', tripId);
+      setCancellingFlight(true);
+      try {
+        console.log('[handleCancelFlight] Fetching cancel reasons from API...');
+        const resReasons = await flightService.getCancelReasons(tripId);
+        console.log('[handleCancelFlight] Response received:', resReasons);
+        const reasons = resReasons.reasons || resReasons.data?.reasons || [];
+        
+        if (reasons.length === 0) {
+          console.warn('[handleCancelFlight] No reasons returned. Using default local fallback reasons.');
+          const fallbackReasons = [
+            { reason: "My plans changed", reason_code: "PassengerDecidedNotToTravel" },
+            { reason: "I directly cancelled with airline", reason_code: "FlightDelayOrCancellationByAirline" },
+            { reason: "Flight rescheduled by airline", reason_code: "MedicalEmergency" },
+            { reason: "Flight cancelled by airline", reason_code: "Other" }
+          ];
+          setCancelReasonsList(fallbackReasons);
+        } else {
+          setCancelReasonsList(reasons);
+        }
+        setReasonsModalVisible(true);
+      } catch (err: any) {
+        console.error('[handleCancelFlight] Get reasons error:', err);
+        // Fallback reasons so modal still opens under network issues
+        const fallbackReasons = [
+          { reason: "My plans changed", reason_code: "PassengerDecidedNotToTravel" },
+          { reason: "I directly cancelled with airline", reason_code: "FlightDelayOrCancellationByAirline" },
+          { reason: "Flight rescheduled by airline", reason_code: "MedicalEmergency" },
+          { reason: "Flight cancelled by airline", reason_code: "Other" }
+        ];
+        setCancelReasonsList(fallbackReasons);
+        setReasonsModalVisible(true);
+      } finally {
+        setCancellingFlight(false);
+      }
+    };
+    const handleSelectReason = async (reasonItem: any) => {
+      setSelectedReasonCode(reasonItem.reason_code);
+      setLoadingRefundPreview(true);
+      try {
+        console.log('[handleSelectReason] Querying refund preview for:', reasonItem.reason_code);
+        const res = await flightService.getCancelRefundInfo(tripId, reasonItem.reason_code);
+        console.log('[handleSelectReason] Refund preview response:', res);
+        if (res && res.success && res.data) {
+          setRefundPreview(res.data);
+        } else {
+          setRefundPreview({
+            gross_amount: totalFare,
+            airline_charge: 3000,
+            partner_fee: 0,
+            refund_amount: Math.max(0, totalFare - 3000)
+          });
+        }
+      } catch (err) {
+        console.error('[handleSelectReason] Failed to fetch refund preview:', err);
+        setRefundPreview({
+          gross_amount: totalFare,
+          airline_charge: 3000,
+          partner_fee: 0,
+          refund_amount: Math.max(0, totalFare - 3000)
+        });
+      } finally {
+        setLoadingRefundPreview(false);
+      }
+    };
+    const handleViewRefundInfo = async () => {
+      try {
+        const res = await flightService.getRefundInfo(tripId);
+        if (res && res.success && res.data) {
+          const rd = res.data;
+          const refundInfo = rd.refund_info || {};
+          const keys = Object.keys(refundInfo);
+          const refundDetails = keys.length > 0 ? refundInfo[keys[0]] : [];
+          
+          if (refundDetails.length > 0) {
+            const totalRefund = refundDetails.reduce((sum: number, item: any) => sum + (Number(item.refund_amount) || 0), 0);
+            const status = refundDetails[0]?.booking_status || 'N/A';
+            const cancelledTime = refundDetails[0]?.cancelled_time || 'N/A';
+            const sector = refundDetails[0]?.sector || '';
+            
+            Alert.alert(
+              'Refund Details',
+              `Status: ${status}\nTotal Refund: ₹${totalRefund}\nSector: ${sector}\nCancelled Time: ${cancelledTime}\nRef ID: ${keys[0]}`,
+              [{ text: 'OK' }]
+            );
+          } else {
+            Alert.alert('Refund Details', 'No refund details found for this cancelled trip.');
+          }
+        }
+      } catch (err: any) {
+        console.error('Failed to get refund info:', err);
+        const errMsg = err.response?.data?.message || err.message || 'Failed to fetch refund details.';
+        Alert.alert('Refund Details Error', errMsg);
+      }
+    };
+    const liveStatus = bd.booking_status || '';
+    const statusVal = (liveStatus === 'Cancelled' || liveStatus === 'CANCELLED' || liveStatus === 'C' || liveStatus === 'Q' || String(liveStatus).toLowerCase() === 'cancelled') 
+      ? 'Cancelled' 
+      : (liveStatus === 'Z' ? 'Pending' : (liveStatus === 'P' || liveStatus === 'B' || liveStatus === 'CONFIRMED' ? 'Confirmed' : 'Confirmed'));
     const journeyType = jd.journey_type === 'OW' ? 'One Way' : 'Round Trip';
     
     const segmentStr = segmentsList.map((s: any) => `${s.al || s.oa || 'SG'} ${s.fn || ''}`).join(' + ') || 'SG 106';
@@ -124,19 +285,22 @@ export default function MyBookings({ onBack }: MyBookingsProps) {
 
     const fareBrand = bd.payment_details?.booking_payment_breakup?.pricing_breakup?.[0]?.fare_group?.brand_name || 'SPICE MAX';
     const cabinVal = firstSegment.booking_infos?.[0]?.cabin_type === 'E' ? 'Economy' : 'Business';
+    const seatNumber = p?.seatNumber || p?.selectedSeat || '27F';
+    const terminalVal = firstSegment.booking_infos?.[0]?.terminal || selectedFlightTicket.flightDetails?.terminal || '2A';
+    const gateVal = firstSegment.booking_infos?.[0]?.gate || '18';
 
     const baggageObj = firstSegment.baggage?.ADT || {};
     const cabBag = baggageObj.cab || '7 kg';
     const cibBag = baggageObj.cib || '15 kg';
     const baggageStr = `Cabin ${cabBag}, Check-in ${cibBag}`;
 
-    const airlineCode = firstSegment.al || firstSegment.oa || 'SG';
-    const airlineName = jd.meta_data?.airlines?.[airlineCode]?.name || bd.airline || selectedFlightTicket.flightDetails?.airline || 'SpiceJet';
-    const themeBg = airlineCode === '6E' ? '#1e3a8a' : '#c2185b';
+    const airlineCode = firstSegment.al || firstSegment.oa || (selectedFlightTicket.flightDetails?.airline?.toLowerCase().includes('indigo') ? '6E' : (selectedFlightTicket.flightDetails?.airline?.toLowerCase().includes('india') ? 'AI' : ''));
+    const airlineName = jd.meta_data?.airlines?.[airlineCode]?.name || bd.airline || selectedFlightTicket.flightDetails?.airline || '';
+    const themeBg = airlineCode === '6E' ? '#1e3a8a' : (airlineCode === 'AI' ? '#c2185b' : '#ef4444');
 
     const middleCode = segmentsList.length > 1 ? segmentsList[0].arr : null;
-    const middleAirportCity = middleCode ? jd.meta_data?.airports?.[middleCode]?.city || 'Delhi' : '';
-    const middleAirportName = middleCode ? jd.meta_data?.airports?.[middleCode]?.name || 'Indira Gandhi Airport' : '';
+    const middleAirportCity = middleCode ? jd.meta_data?.airports?.[middleCode]?.city || '' : '';
+    const middleAirportName = middleCode ? jd.meta_data?.airports?.[middleCode]?.name || '' : '';
     
     let layoverStr = '';
     if (segmentsList.length > 1) {
@@ -147,17 +311,17 @@ export default function MyBookings({ onBack }: MyBookingsProps) {
       const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
       layoverStr = `${hours} hr ${mins} min layover`;
     } else {
-      layoverStr = '16 hr 55 min layover';
+      layoverStr = '';
     }
 
-    const origAirportName = jd.meta_data?.airports?.[origCode]?.name || 'Lohegaon';
-    const destAirportName = jd.meta_data?.airports?.[destCode]?.name || 'Chatrapati Shivaji Airport';
+    const origAirportName = jd.meta_data?.airports?.[origCode]?.name || '';
+    const destAirportName = jd.meta_data?.airports?.[destCode]?.name || '';
 
     const bookedDateVal = bd.booked_date ? bd.booked_date : (selectedFlightTicket.createdAt || Date.now());
     const formatDate = (timestamp: any) => {
-      if (!timestamp) return '11 Aug 2026, 07:44 PM';
+      if (!timestamp) return '';
       const d = new Date(timestamp);
-      if (isNaN(d.getTime())) return '11 Aug 2026, 07:44 PM';
+      if (isNaN(d.getTime())) return '';
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       let hours = d.getHours();
       const minutes = d.getMinutes();
@@ -169,13 +333,13 @@ export default function MyBookings({ onBack }: MyBookingsProps) {
     };
     const bookedOnStr = formatDate(bookedDateVal);
 
-    const contactEmail = bd.user_details?.email || selectedFlightTicket.contactDetails?.email || 'rahul@example.com';
-    const contactPhone = bd.user_details?.phone || selectedFlightTicket.contactDetails?.phone || '9876543210';
+    const contactEmail = bd.user_details?.email || selectedFlightTicket.contactDetails?.email || '';
+    const contactPhone = bd.user_details?.phone || selectedFlightTicket.contactDetails?.phone || '';
 
     const fareGroup = bd.payment_details?.booking_payment_breakup?.pricing_breakup?.[0]?.fare_group || {};
-    const baseFare = fareGroup.base_fare || selectedFlightTicket.fareDetails?.baseFare || 13821;
-    const taxFare = fareGroup.tax || selectedFlightTicket.fareDetails?.taxes || 2519;
-    const totalFare = fareGroup.total_fare || selectedFlightTicket.fareDetails?.totalAmount || 16340;
+    const baseFare = fareGroup.base_fare || selectedFlightTicket.fareDetails?.baseFare || 0;
+    const taxFare = fareGroup.tax || selectedFlightTicket.fareDetails?.taxes || 0;
+    const totalFare = fareGroup.total_fare || selectedFlightTicket.fareDetails?.totalAmount || 0;
 
     const formatSegmentDate = (dateStr: string) => {
       if (!dateStr) return '24 Aug 2026 12:55 AM';
@@ -192,234 +356,299 @@ export default function MyBookings({ onBack }: MyBookingsProps) {
     };
 
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
-        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#ef4444' }}>
+        <StatusBar barStyle="light-content" backgroundColor="#ef4444" />
         
         {/* Header Bar */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
-          <TouchableOpacity onPress={() => setSelectedFlightTicket(null)} style={{ width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' }}>
-            <Text style={{ fontSize: 18, color: '#0f172a', fontWeight: 'bold' }}>←</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, backgroundColor: '#ef4444' }}>
+          <TouchableOpacity onPress={() => setSelectedFlightTicket(null)} style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255, 255, 255, 0.2)' }}>
+            <Text style={{ fontSize: 22, color: '#ffffff', fontWeight: 'bold' }}>←</Text>
           </TouchableOpacity>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: '#0f172a', fontFamily: FONT_BOLD }}>Booking Details</Text>
-          <TouchableOpacity style={{ width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' }} onPress={() => Alert.alert('Share', 'Sharing booking details...')}>
-            <Text style={{ fontSize: 16 }}>📤</Text>
+          <Text style={{ fontSize: 19, fontWeight: '700', color: '#ffffff', fontFamily: FONT_BOLD }}>Flight Ticket</Text>
+          <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255, 255, 255, 0.2)' }} onPress={() => Alert.alert('Share', 'Sharing booking details...')}>
+            <Text style={{ fontSize: 18, color: '#ffffff' }}>📤</Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           
-          {/* 1. Top Airport Codes Flow Panel */}
-          <View style={{ backgroundColor: '#ffffff', borderRadius: 16, padding: 20, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              
-              {/* PNQ Code */}
-              <View style={{ flex: 1, alignItems: 'center' }}>
-                <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#0f172a', fontFamily: FONT_BOLD }}>{origCode}</Text>
-                <Text style={{ fontSize: 11, color: '#64748b', textAlign: 'center', marginTop: 4 }}>{origCity}</Text>
-                <Text style={{ fontSize: 9, color: '#94a3b8', textAlign: 'center' }} numberOfLines={1}>{origAirportName.split(' ')[0]}</Text>
-              </View>
-
-              {/* Arrow + Plane 1 */}
-              <View style={{ flex: 0.8, alignItems: 'center', justifyContent: 'center' }}>
-                <View style={{ height: 1, backgroundColor: '#cbd5e1', width: '100%', position: 'absolute' }} />
-                <View style={{ backgroundColor: '#ffffff', padding: 4 }}>
-                  <Text style={{ fontSize: 16 }}>✈️</Text>
-                </View>
-              </View>
-
-              {/* DEL Code (Middle) */}
-              <View style={{ flex: 1.2, alignItems: 'center' }}>
-                <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#0f172a', fontFamily: FONT_BOLD }}>{middleCode || 'DEL'}</Text>
-                <Text style={{ fontSize: 11, color: '#64748b', textAlign: 'center', marginTop: 4 }}>{middleAirportCity || 'New Delhi'}</Text>
-                <Text style={{ fontSize: 9, color: '#94a3b8', textAlign: 'center' }} numberOfLines={1}>{middleAirportName.split(' ')[0]}</Text>
-              </View>
-
-              {/* Arrow + Plane 2 */}
-              <View style={{ flex: 0.8, alignItems: 'center', justifyContent: 'center' }}>
-                <View style={{ height: 1, backgroundColor: '#cbd5e1', width: '100%', position: 'absolute' }} />
-                <View style={{ backgroundColor: '#ffffff', padding: 4 }}>
-                  <Text style={{ fontSize: 16 }}>✈️</Text>
-                </View>
-              </View>
-
-              {/* BOM Code */}
-              <View style={{ flex: 1, alignItems: 'center' }}>
-                <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#0f172a', fontFamily: FONT_BOLD }}>{destCode}</Text>
-                <Text style={{ fontSize: 11, color: '#64748b', textAlign: 'center', marginTop: 4 }}>{destCity}</Text>
-                <Text style={{ fontSize: 9, color: '#94a3b8', textAlign: 'center' }} numberOfLines={1}>{destAirportName.split(' ')[0]}</Text>
-              </View>
-              
-            </View>
-
-            {/* Layover pill */}
-            <View style={{ alignSelf: 'center', backgroundColor: '#ffe4e6', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, marginTop: 12 }}>
-              <Text style={{ color: '#e11d48', fontSize: 11, fontWeight: 'bold', fontFamily: FONT_SEMI }}>{layoverStr}</Text>
-            </View>
-          </View>
-
-          {/* 2. Segments Detailed List */}
-          <View style={{ backgroundColor: '#ffffff', borderRadius: 16, padding: 20, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 }}>
+          {/* Main Ticket Card Container */}
+          <View style={{ backgroundColor: '#ffffff', borderRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 15, elevation: 8, overflow: 'hidden' }}>
             
-            {/* Segment 1 */}
-            <View style={{ flexDirection: 'row' }}>
-              <View style={{ width: 64, marginRight: 12 }}>
-                <View style={{ backgroundColor: '#be123c', borderRadius: 4, paddingVertical: 4, alignItems: 'center' }}>
-                  <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: 'bold', fontFamily: FONT_BOLD }}>{segmentsList[0]?.al || airlineCode} {segmentsList[0]?.fn || ''}</Text>
+            {/* Top Section */}
+            <View style={{ padding: 24 }}>
+              {/* Airport Codes Flow */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#ef4444', fontFamily: FONT_BOLD }}>{origCode}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#1e293b', marginTop: 2, fontFamily: FONT_BOLD }}>{origCity.toUpperCase()}</Text>
+                  <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2, fontFamily: FONT_FAMILY }} numberOfLines={1}>
+                    {formatSegmentDate(firstSegment.dt || '').split(' ')[3] || '10:30 AM'}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{formatSegmentDate(firstSegment.dt || '').split(' ').slice(0, 3).join(' ')}</Text>
+                </View>
+
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 }}>
+                  <View style={{ flex: 1, height: 1, borderWidth: 1, borderColor: '#ef4444', borderStyle: 'dashed' }} />
+                  <Text style={{ fontSize: 18, color: '#ef4444', marginHorizontal: 6 }}>✈️</Text>
+                  <View style={{ flex: 1, height: 1, borderWidth: 1, borderColor: '#ef4444', borderStyle: 'dashed' }} />
+                </View>
+
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#ef4444', fontFamily: FONT_BOLD }}>{destCode}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#1e293b', marginTop: 2, fontFamily: FONT_BOLD }}>{destCity.toUpperCase()}</Text>
+                  <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2, fontFamily: FONT_FAMILY }} numberOfLines={1}>
+                    {formatSegmentDate(firstSegment.at || '').split(' ')[3] || '05:27 PM'}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{formatSegmentDate(firstSegment.at || '').split(' ').slice(0, 3).join(' ')}</Text>
                 </View>
               </View>
 
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: '#64748b', marginRight: 8 }} />
-                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#0f172a', fontFamily: FONT_BOLD }}>{segmentsList[0]?.dep || origCode} ➔ {segmentsList[0]?.arr || middleCode || 'DEL'}</Text>
-                </View>
-
-                <View style={{ paddingLeft: 16, borderLeftWidth: 1, borderLeftColor: '#cbd5e1', borderStyle: 'dashed', marginLeft: 3, paddingBottom: 10 }}>
-                  <View style={{ marginBottom: 8 }}>
-                    <Text style={{ fontSize: 10, color: '#64748b' }}>Departure</Text>
-                    <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#9f1239', marginTop: 2, fontFamily: FONT_BOLD }}>{formatSegmentDate(segmentsList[0]?.dt || (bd.booked_date ? new Date(bd.booked_date + 86400000).toISOString() : ''))}</Text>
-                    <Text style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{origCity}, {origAirportName}</Text>
+              {/* Info Grid */}
+              <View style={{ marginTop: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
+                  <View style={{ flex: 1.2, marginRight: 8 }}>
+                    <Text style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4, fontFamily: FONT_FAMILY }}>Passenger</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#0f172a', fontFamily: FONT_BOLD }} numberOfLines={2}>{travellerName.toUpperCase()}</Text>
                   </View>
-
-                  <View style={{ marginBottom: 8 }}>
-                    <Text style={{ fontSize: 10, color: '#64748b' }}>Arrival</Text>
-                    <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#9f1239', marginTop: 2, fontFamily: FONT_BOLD }}>{formatSegmentDate(segmentsList[0]?.at || (bd.booked_date ? new Date(bd.booked_date + 90000000).toISOString() : ''))}</Text>
-                    <Text style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{middleAirportCity || 'New Delhi'}, {middleAirportName}</Text>
-                  </View>
-
-                  <View>
-                    <Text style={{ fontSize: 10, color: '#64748b' }}>Terminal</Text>
-                    <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#0f172a', marginTop: 2 }}>{segmentsList[0]?.booking_infos?.[0]?.terminal || '1D'}</Text>
+                  <View style={{ flex: 0.8, alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4, fontFamily: FONT_FAMILY }}>Flight</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#0f172a', fontFamily: FONT_BOLD }}>{segmentStr}</Text>
                   </View>
                 </View>
-              </View>
-            </View>
 
-            {/* Layover gray bar */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginVertical: 14, marginLeft: 76 }}>
-              <Text style={{ fontSize: 12, marginRight: 8 }}>🕒</Text>
-              <Text style={{ fontSize: 12, color: '#475569', flex: 1, fontFamily: FONT_FAMILY }}>Layover in {middleAirportCity || 'Delhi'}</Text>
-              <Text style={{ fontSize: 12, color: '#0f172a', fontWeight: 'bold', fontFamily: FONT_SEMI }}>{layoverStr.replace(' layover', '')}</Text>
-            </View>
-
-            {/* Segment 2 */}
-            <View style={{ flexDirection: 'row', marginTop: 4 }}>
-              <View style={{ width: 64, marginRight: 12 }}>
-                <View style={{ backgroundColor: '#be123c', borderRadius: 4, paddingVertical: 4, alignItems: 'center' }}>
-                  <Text style={{ color: '#ffffff', fontSize: 10, fontWeight: 'bold', fontFamily: FONT_BOLD }}>{segmentsList[1]?.al || airlineCode} {segmentsList[1]?.fn || ''}</Text>
-                </View>
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: '#64748b', marginRight: 8 }} />
-                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#0f172a', fontFamily: FONT_BOLD }}>{segmentsList[1]?.dep || middleCode || 'DEL'} ➔ {segmentsList[1]?.arr || destCode}</Text>
-                </View>
-
-                <View style={{ paddingLeft: 16, borderLeftWidth: 1, borderLeftColor: '#cbd5e1', borderStyle: 'dashed', marginLeft: 3 }}>
-                  <View style={{ marginBottom: 8 }}>
-                    <Text style={{ fontSize: 10, color: '#64748b' }}>Departure</Text>
-                    <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#9f1239', marginTop: 2, fontFamily: FONT_BOLD }}>{formatSegmentDate(segmentsList[1]?.dt || (bd.booked_date ? new Date(bd.booked_date + 150000000).toISOString() : ''))}</Text>
-                    <Text style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{middleAirportCity || 'New Delhi'}, {middleAirportName}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4, fontFamily: FONT_FAMILY }}>Seat</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#0f172a', fontFamily: FONT_BOLD }}>{seatNumber}</Text>
                   </View>
-
-                  <View style={{ marginBottom: 8 }}>
-                    <Text style={{ fontSize: 10, color: '#64748b' }}>Arrival</Text>
-                    <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#9f1239', marginTop: 2, fontFamily: FONT_BOLD }}>{formatSegmentDate(segmentsList[1]?.at || (bd.booked_date ? new Date(bd.booked_date + 160000000).toISOString() : ''))}</Text>
-                    <Text style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{destCity}, {destAirportName}</Text>
+                  <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4, fontFamily: FONT_FAMILY }}>Gate</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#0f172a', fontFamily: FONT_BOLD }}>{gateVal}</Text>
                   </View>
-
-                  <View>
-                    <Text style={{ fontSize: 10, color: '#64748b' }}>Terminal</Text>
-                    <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#0f172a', marginTop: 2 }}>{segmentsList[1]?.booking_infos?.[0]?.terminal || '1'}</Text>
+                  <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4, fontFamily: FONT_FAMILY }}>Terminal</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#0f172a', fontFamily: FONT_BOLD }}>{terminalVal}</Text>
                   </View>
                 </View>
               </View>
             </View>
 
+            {/* Ticket punch notches & dashed line */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 30, backgroundColor: 'transparent' }}>
+              <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#ef4444', marginLeft: -12 }} />
+              <View style={{ flex: 1, height: 1, borderWidth: 1, borderColor: '#e2e8f0', borderStyle: 'dashed', marginHorizontal: 8 }} />
+              <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#ef4444', marginRight: -12 }} />
+            </View>
+
+            {/* Bottom Section */}
+            <View style={{ padding: 24, backgroundColor: '#ffffff', alignItems: 'center' }}>
+              {/* Mock Barcode */}
+              <View style={{ alignItems: 'center', marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', height: 48, alignItems: 'center' }}>
+                  {[2, 4, 1, 3, 1, 4, 2, 1, 3, 2, 4, 1, 2, 3, 1, 4, 2, 3, 1, 2, 4, 1].map((width, idx) => (
+                    <View
+                      key={idx}
+                      style={{
+                        height: '100%',
+                        backgroundColor: '#1e293b',
+                        width: width * 1.5,
+                        marginRight: idx % 3 === 0 ? 3 : 1.5,
+                      }}
+                    />
+                  ))}
+                </View>
+                <Text style={{ fontSize: 12, color: '#64748b', fontWeight: '700', marginTop: 8, letterSpacing: 1, fontFamily: FONT_BOLD }}>PNR: {pnrVal}</Text>
+              </View>
+
+              {/* Download Ticket Button */}
+              <TouchableOpacity
+                style={{ width: '100%', backgroundColor: '#ef4444', borderRadius: 16, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', shadowColor: '#ef4444', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }}
+                onPress={handleDownloadFlight}
+                activeOpacity={0.9}
+              >
+                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5, fontFamily: FONT_BOLD }}>DOWNLOAD TICKET</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {/* 3. Bottom Row Summary Boxes */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
-            
-            {/* Box 1 (Left): Booked & Contact */}
-            <View style={{ flex: 1.1, backgroundColor: '#ffffff', borderRadius: 12, padding: 12, marginRight: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                <Text style={{ fontSize: 14, marginRight: 6 }}>📅</Text>
-                <Text style={{ fontSize: 10, color: '#64748b', fontWeight: 'bold' }}>Booked on</Text>
-              </View>
-              <Text style={{ fontSize: 11, fontWeight: '600', color: '#1e293b', marginBottom: 12 }}>{bookedOnStr}</Text>
-
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                <Text style={{ fontSize: 14, marginRight: 6 }}>📞</Text>
-                <Text style={{ fontSize: 10, color: '#64748b', fontWeight: 'bold' }}>Contact</Text>
-              </View>
-              <Text style={{ fontSize: 10.5, color: '#1e293b' }} numberOfLines={1}>{contactEmail}</Text>
-              <Text style={{ fontSize: 11, fontWeight: '600', color: '#1e293b', marginTop: 2 }}>{contactPhone}</Text>
+          {/* Contact & Fare Details */}
+          <View style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: 18, padding: 18, marginTop: 20 }}>
+            <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: 'bold', marginBottom: 12, fontFamily: FONT_BOLD }}>Trip Details & Fare</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>Status</Text>
+              <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: 'bold' }}>{statusVal}</Text>
             </View>
-
-            {/* Box 2 (Center): Payment Summary */}
-            <View style={{ flex: 1.2, backgroundColor: '#ffffff', borderRadius: 12, padding: 12, marginRight: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={{ fontSize: 14, marginRight: 6 }}>👛</Text>
-                <Text style={{ fontSize: 10, color: '#64748b', fontWeight: 'bold' }}>Payment Summary</Text>
-              </View>
-
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={{ fontSize: 10, color: '#64748b' }}>Base Fare</Text>
-                <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#1e293b' }}>₹{baseFare.toLocaleString()}</Text>
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={{ fontSize: 10, color: '#64748b' }}>Taxes</Text>
-                <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#1e293b' }}>₹{taxFare.toLocaleString()}</Text>
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                <Text style={{ fontSize: 10, color: '#64748b' }}>Conv. Fee</Text>
-                <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#1e293b' }}>₹0</Text>
-              </View>
-              <View style={{ height: 1, backgroundColor: '#cbd5e1', marginBottom: 6 }} />
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 10.5, fontWeight: 'bold', color: '#0f172a' }}>Total</Text>
-                <Text style={{ fontSize: 11.5, fontWeight: 'bold', color: '#ea580c' }}>₹{totalFare.toLocaleString()}</Text>
-              </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>Baggage Allowance</Text>
+              <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: 'bold' }}>{baggageStr}</Text>
             </View>
-
-            {/* Box 3 (Right): Total Fare & Paid status */}
-            <View style={{ flex: 1, backgroundColor: '#fff5f5', borderRadius: 12, padding: 12, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
-              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
-                <Text style={{ fontSize: 16, color: '#ef4444', fontWeight: 'bold' }}>₹</Text>
-              </View>
-              <Text style={{ fontSize: 10, color: '#64748b' }}>Total Fare</Text>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#b91c1c', marginVertical: 2, fontFamily: FONT_BOLD }}>₹{totalFare.toLocaleString()}</Text>
-              
-              <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 12, paddingVertical: 2, borderRadius: 10, marginTop: 4 }}>
-                <Text style={{ fontSize: 10, color: '#15803d', fontWeight: 'bold' }}>Paid</Text>
-              </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>Total Fare Paid</Text>
+              <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: 'bold' }}>₹{totalFare.toLocaleString()}</Text>
             </View>
-
           </View>
 
+          {/* Cancel Booking Action */}
+          {statusVal.toLowerCase() !== 'cancelled' && (
+            <TouchableOpacity
+              style={{
+                marginTop: 20,
+                borderColor: '#ffffff',
+                borderWidth: 1.5,
+                borderRadius: 16,
+                paddingVertical: 14,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                opacity: cancellingFlight ? 0.6 : 1,
+              }}
+              onPress={handleCancelFlight}
+              disabled={cancellingFlight}
+              activeOpacity={0.8}
+            >
+              {cancellingFlight ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 15, fontFamily: FONT_BOLD }}>Cancel Booking</Text>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {/* View Refund Details (Only for Cancelled Bookings) */}
+          {statusVal.toLowerCase() === 'cancelled' && (
+            <TouchableOpacity
+              style={{
+                marginTop: 20,
+                borderColor: '#ffffff',
+                borderWidth: 1.5,
+                borderRadius: 16,
+                paddingVertical: 14,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              }}
+              onPress={handleViewRefundInfo}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 15, fontFamily: FONT_BOLD }}>View Refund Details</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
 
-        {/* Bottom Bar: Support & Actions */}
-        <View style={{ backgroundColor: '#ffffff', borderTopWidth: 1, borderTopColor: '#f1f5f9' }}>
-          
-          {/* Help Banner */}
-          <TouchableOpacity style={{ backgroundColor: '#c2410c', paddingVertical: 12, alignItems: 'center' }} onPress={() => Linking.openURL('tel:9876543210')}>
-            <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: 'bold', fontFamily: FONT_SEMI }}>Need Help? Contact Support</Text>
-          </TouchableOpacity>
+        {/* Cancellation Reasons Custom Modal */}
+        <Modal
+          visible={reasonsModalVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setReasonsModalVisible(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: '#ffffff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '80%' }}>
+              
+              {/* Modal Header */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0f172a' }}>
+                  {selectedReasonCode ? 'Refund Preview Estimation' : 'Select Cancellation Reason'}
+                </Text>
+                <TouchableOpacity onPress={() => { setReasonsModalVisible(false); setSelectedReasonCode(null); setRefundPreview(null); }} style={{ padding: 4 }}>
+                  <Text style={{ fontSize: 20, color: '#64748b', fontWeight: 'bold' }}>✕</Text>
+                </TouchableOpacity>
+              </View>
 
-          {/* Edit / Floating Action Row */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 }}>
-            <TouchableOpacity style={{ backgroundColor: '#64748b', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20 }} onPress={() => Alert.alert('Edit', 'Modifying booking details...')}>
-              <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: 'bold' }}>Edit</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }} onPress={() => Alert.alert('Share', 'Sharing booking details...')}>
-              <Text style={{ fontSize: 18 }}>📤</Text>
-            </TouchableOpacity>
+              {/* Scrollable content */}
+              {!selectedReasonCode ? (
+                <ScrollView showsVerticalScrollIndicator={false} style={{ marginBottom: 20 }}>
+                  {cancelReasonsList.map((item, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={{
+                        paddingVertical: 16,
+                        paddingHorizontal: 12,
+                        borderBottomWidth: 1,
+                        borderBottomColor: '#f1f5f9',
+                        backgroundColor: '#ffffff',
+                      }}
+                      onPress={() => handleSelectReason(item)}
+                    >
+                      <Text style={{ fontSize: 14, color: '#334155', fontWeight: '600' }}>
+                        {item.reason || item.reason_code}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={{ marginBottom: 20 }}>
+                  {loadingRefundPreview ? (
+                    <View style={{ marginVertical: 40, alignItems: 'center' }}>
+                      <ActivityIndicator size="large" color="#ef4444" />
+                      <Text style={{ marginTop: 12, color: '#64748b', fontSize: 14 }}>Calculating refund preview...</Text>
+                    </View>
+                  ) : (
+                    <View>
+                      <View style={{ backgroundColor: '#f8fafc', borderRadius: 12, padding: 16, borderStyle: 'solid', borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 20 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+                          <Text style={{ color: '#64748b', fontSize: 14.5 }}>Total Paid</Text>
+                          <Text style={{ color: '#0f172a', fontWeight: '700', fontSize: 14.5 }}>₹{refundPreview?.gross_amount?.toLocaleString()}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+                          <Text style={{ color: '#64748b', fontSize: 14.5 }}>Airline Charges</Text>
+                          <Text style={{ color: '#ef4444', fontWeight: '700', fontSize: 14.5 }}>-₹{refundPreview?.airline_charge?.toLocaleString()}</Text>
+                        </View>
+                        <View style={{ height: 1, backgroundColor: '#cbd5e1', marginVertical: 10 }} />
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+                          <Text style={{ color: '#0f172a', fontWeight: '800', fontSize: 16 }}>Estimated Refund</Text>
+                          <Text style={{ color: '#16a34a', fontWeight: '900', fontSize: 18 }}>₹{refundPreview?.refund_amount?.toLocaleString()}</Text>
+                        </View>
+                      </View>
+
+                      <TouchableOpacity
+                        style={{ width: '100%', backgroundColor: '#ef4444', borderRadius: 16, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}
+                        onPress={async () => {
+                          setReasonsModalVisible(false);
+                          setCancellingFlight(true);
+                          try {
+                            const cancelRes = await flightService.cancelFlight(
+                              tripId,
+                              selectedReasonCode,
+                              'User confirmed cancellation'
+                            );
+                            if (cancelRes && cancelRes.success) {
+                              Alert.alert('Success', 'Flight booking has been cancelled successfully.');
+                              setSelectedFlightTicket(null);
+                              fetchAllBookings();
+                            } else {
+                              Alert.alert('Error', cancelRes.error || 'Failed to cancel flight.');
+                            }
+                          } catch (err: any) {
+                            console.error('Cancellation error:', err);
+                            Alert.alert('Error', err.response?.data?.error || err.message || 'Failed to request cancellation.');
+                          } finally {
+                            setCancellingFlight(false);
+                            setSelectedReasonCode(null);
+                            setRefundPreview(null);
+                          }
+                        }}
+                        activeOpacity={0.9}
+                      >
+                        <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5, fontFamily: FONT_BOLD }}>CONFIRM CANCELLATION</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={{ width: '100%', borderColor: '#ef4444', borderWidth: 1.5, borderRadius: 16, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' }}
+                        onPress={() => { setSelectedReasonCode(null); setRefundPreview(null); }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ color: '#ef4444', fontWeight: '700', fontSize: 15, fontFamily: FONT_BOLD }}>BACK</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              )}
+
+            </View>
           </View>
-        </View>
+        </Modal>
 
       </SafeAreaView>
     );
@@ -432,8 +661,17 @@ export default function MyBookings({ onBack }: MyBookingsProps) {
     const cancelledList: any[] = [];
 
     list.forEach((b) => {
-      const statusVal = b.bookingStatus || b.ticketStatus || b.status || 'CONFIRMED';
-      if (String(statusVal).toLowerCase() === 'cancelled') {
+      const ct = b.cleartripData || {};
+      const bd = ct.booking_details || ct;
+      const liveStatus = bd.booking_status || '';
+      const dbStatus = b.bookingStatus || b.status || '';
+      
+      const isCancelled = String(liveStatus).toLowerCase() === 'cancelled' || 
+                          liveStatus === 'C' || 
+                          liveStatus === 'Q' || 
+                          String(dbStatus).toLowerCase() === 'cancelled' || 
+                          dbStatus === 'C';
+      if (isCancelled) {
         cancelledList.push(b);
       } else {
         bookingList.push(b);
@@ -682,10 +920,35 @@ export default function MyBookings({ onBack }: MyBookingsProps) {
       </View>
 
       {/* Content */}
-      {loading || loadingTicket ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#2563eb" />
-          {loadingTicket && <Text style={{ marginTop: 10, color: '#64748b', fontSize: 13 }}>Fetching Live ticket from Cleartrip...</Text>}
+      {loading ? (
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {[1, 2, 3].map((key) => (
+            <View key={key} style={{ backgroundColor: '#ffffff', borderRadius: 20, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 1 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
+                <Skeleton width={130} height={20} />
+                <Skeleton width={80} height={20} borderRadius={10} />
+              </View>
+              <View style={{ flexDirection: 'row', marginBottom: 14 }}>
+                <Skeleton width={70} height={70} borderRadius={12} style={{ marginRight: 14 }} />
+                <View style={{ flex: 1, justifyContent: 'center' }}>
+                  <Skeleton width={110} height={14} style={{ marginBottom: 8 }} />
+                  <Skeleton width={150} height={16} />
+                </View>
+              </View>
+              <Skeleton width="100%" height={40} borderRadius={12} />
+            </View>
+          ))}
+        </ScrollView>
+      ) : loadingTicket ? (
+        <View style={{ flex: 1, padding: 20, backgroundColor: '#f8fafc', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: '100%', backgroundColor: '#ffffff', borderRadius: 24, padding: 24, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 }}>
+            <Skeleton width={140} height={20} style={{ marginBottom: 16, alignSelf: 'center' }} />
+            <Skeleton width="60%" height={24} style={{ marginBottom: 24, alignSelf: 'center' }} />
+            <Skeleton width="100%" height={160} borderRadius={16} style={{ marginBottom: 24 }} />
+            <Skeleton width="100%" height={45} borderRadius={12} style={{ marginBottom: 12 }} />
+            <Skeleton width="100%" height={45} borderRadius={12} />
+          </View>
+          <Text style={{ marginTop: 16, color: '#64748b', fontSize: 13, fontFamily: FONT_FAMILY }}>Retrieving Cleartrip live flight details...</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -704,7 +967,9 @@ export default function MyBookings({ onBack }: MyBookingsProps) {
               const paxList = jd.traveller_details || raw.passengers || [];
 
               const tripId = bd.trip_id || raw.tripId || raw.bookingId || 'Q260811970568';
-              const statusVal = bd.booking_status || raw.bookingStatus || 'CONFIRMED';
+              const liveStatus = bd.booking_status || '';
+              const isCancelled = String(liveStatus).toLowerCase() === 'cancelled' || liveStatus === 'C' || liveStatus === 'Q';
+              const statusVal = isCancelled ? 'CANCELLED' : (liveStatus === 'B' ? 'CONFIRMED' : (liveStatus || 'CONFIRMED'));
               const journeyType = jd.journey_type === 'OW' ? 'One Way' : 'Round Trip';
               
               const segmentStr = segmentsList.map((s: any) => `${s.al || s.oa || 'SG'} ${s.fn || ''}`).join(' + ') || (raw.flightDetails?.airline && raw.flightDetails?.flightNumber ? `${raw.flightDetails.airline.substring(0,2).toUpperCase()} ${raw.flightDetails.flightNumber}` : 'SG 106 + SG 162');
@@ -736,29 +1001,16 @@ export default function MyBookings({ onBack }: MyBookingsProps) {
               const cibBag = baggageObj.cib || '15 kg';
               const baggageStr = `Cabin ${cabBag}, Check-in ${cibBag}`;
 
-              const airlineCode = firstSegment.al || firstSegment.oa || (raw.flightDetails?.airline?.toLowerCase().includes('indigo') ? '6E' : 'SG');
-              const airlineName = jd.meta_data?.airlines?.[airlineCode]?.name || bd.airline || raw.flightDetails?.airline || 'SpiceJet';
-              const themeBg = airlineCode === '6E' ? '#1e3a8a' : '#c2185b';
+              const airlineCode = firstSegment.al || firstSegment.oa || (raw.flightDetails?.airline?.toLowerCase().includes('indigo') ? '6E' : (raw.flightDetails?.airline?.toLowerCase().includes('india') ? 'AI' : ''));
+              const airlineName = jd.meta_data?.airlines?.[airlineCode]?.name || bd.airline || raw.flightDetails?.airline || '';
+              const themeBg = airlineCode === '6E' ? '#1e3a8a' : (airlineCode === 'AI' ? '#c2185b' : '#334155');
 
               return (
                 <TouchableOpacity
                   key={booking.id}
                   style={{ backgroundColor: '#ffffff', borderRadius: 16, overflow: 'hidden', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, marginBottom: 20 }}
-                  onPress={async () => {
-                    setLoadingTicket(true);
-                    try {
-                      const details = await flightService.getTripDetails(tripId);
-                      if (details && details.success) {
-                        setSelectedFlightTicket(details.data);
-                      } else {
-                        setSelectedFlightTicket(raw);
-                      }
-                    } catch (err: any) {
-                      console.warn('Cleartrip live ticket error, loading local DB backup:', err.message);
-                      setSelectedFlightTicket(raw);
-                    } finally {
-                      setLoadingTicket(false);
-                    }
+                  onPress={() => {
+                    setSelectedTripId(tripId);
                   }}
                   activeOpacity={0.9}
                 >
@@ -938,6 +1190,143 @@ export default function MyBookings({ onBack }: MyBookingsProps) {
           })}
         </ScrollView>
       )}
+
+      {/* Cancellation Reasons Custom Modal */}
+      <Modal
+        visible={reasonsModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setReasonsModalVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#ffffff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '80%' }}>
+            
+            {/* Modal Header */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0f172a' }}>Select Cancellation Reason</Text>
+              <TouchableOpacity onPress={() => setReasonsModalVisible(false)} style={{ padding: 4 }}>
+                <Text style={{ fontSize: 20, color: '#64748b', fontWeight: 'bold' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Scrollable list of reasons */}
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginBottom: 20 }}>
+              {cancelReasonsList.map((item, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={{
+                    paddingVertical: 16,
+                    paddingHorizontal: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#f1f5f9',
+                    backgroundColor: '#ffffff',
+                  }}
+                  onPress={async () => {
+                    const tripId = selectedFlightTicket?.tripId || selectedFlightTicket?.bookingId || '';
+                    const totalFare = selectedFlightTicket?.fareDetails?.totalAmount || selectedFlightTicket?.payment_details?.booking_payment_breakup?.pricing_breakup?.[0]?.fare_group?.total_fare || 0;
+
+                    setReasonsModalVisible(false);
+                    setCancellingFlight(true);
+                    try {
+                      console.log('[MyBookings] Fetching refund preview for reason:', item.reason_code);
+                      const refundRes = await flightService.getCancelRefundInfo(tripId, item.reason_code);
+                      console.log('[MyBookings] Refund preview response:', refundRes);
+
+                      const preview = refundRes?.data || refundRes || {};
+                      const gross = preview.gross_amount ?? totalFare;
+                      const penalty = preview.airline_charge ?? 3000;
+                      const partner = preview.partner_fee ?? 0;
+                      const refund = preview.refund_amount ?? Math.max(0, gross - penalty - partner);
+
+                      Alert.alert(
+                        'Confirm Cancellation & Refund',
+                        `Refund Breakdown:\n\n• Gross Ticket Fare: ₹${gross.toLocaleString('en-IN')}\n• Airline Penalty: ₹${penalty.toLocaleString('en-IN')}\n• Convenience Fee: ₹${partner.toLocaleString('en-IN')}\n• Est. Refund Amount: ₹${refund.toLocaleString('en-IN')}\n\nAre you sure you want to proceed?`,
+                        [
+                          {
+                            text: 'Keep Booking',
+                            style: 'cancel',
+                            onPress: () => setCancellingFlight(false)
+                          },
+                          {
+                            text: 'Cancel Flight',
+                            style: 'destructive',
+                            onPress: async () => {
+                              setCancellingFlight(true);
+                              try {
+                                const cancelRes = await flightService.cancelFlight(
+                                  selectedFlightTicket._id || selectedFlightTicket.id,
+                                  item.reason_code,
+                                  'User confirmed cancellation after previewing refund details.'
+                                );
+                                if (cancelRes && cancelRes.success) {
+                                  Alert.alert('Success', 'Flight booking has been cancelled successfully.');
+                                  setSelectedFlightTicket(null);
+                                  onBack();
+                                } else {
+                                  Alert.alert('Error', cancelRes.error || 'Failed to cancel flight.');
+                                }
+                              } catch (err: any) {
+                                console.error('Cancellation execution error:', err);
+                                Alert.alert('Error', err.response?.data?.error || err.message || 'Failed to execute cancellation.');
+                              } finally {
+                                setCancellingFlight(false);
+                              }
+                            }
+                          }
+                        ]
+                      );
+                    } catch (err: any) {
+                      console.error('Refund preview fetch error:', err);
+                      // Fallback warning dialog to allow proceeding if preview API fails
+                      Alert.alert(
+                        'Preview Failed',
+                        'Failed to fetch live refund calculations. Would you like to proceed with standard cancellation rules?',
+                        [
+                          {
+                            text: 'Keep Booking',
+                            style: 'cancel',
+                            onPress: () => setCancellingFlight(false)
+                          },
+                          {
+                            text: 'Cancel Flight',
+                            style: 'destructive',
+                            onPress: async () => {
+                              setCancellingFlight(true);
+                              try {
+                                const cancelRes = await flightService.cancelFlight(
+                                  selectedFlightTicket._id || selectedFlightTicket.id,
+                                  item.reason_code,
+                                  'User proceeded with cancellation without preview.'
+                                );
+                                if (cancelRes && cancelRes.success) {
+                                  Alert.alert('Success', 'Flight booking has been cancelled successfully.');
+                                  setSelectedFlightTicket(null);
+                                  onBack();
+                                } else {
+                                  Alert.alert('Error', cancelRes.error || 'Failed to cancel flight.');
+                                }
+                              } catch (err: any) {
+                                Alert.alert('Error', err.response?.data?.error || err.message || 'Failed to execute cancellation.');
+                              } finally {
+                                setCancellingFlight(false);
+                              }
+                            }
+                          }
+                        ]
+                      );
+                    }
+                  }}
+                >
+                  <Text style={{ fontSize: 14, color: '#334155', fontWeight: '600' }}>
+                    {item.reason || item.reason_code}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+          </View>
+        </View>
+      </Modal>
 
     </SafeAreaView>
   );

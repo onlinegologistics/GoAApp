@@ -120,10 +120,11 @@ interface HotelListScreenProps {
   onBack?: () => void;
   onChangeSearch?: () => void;
   onBookHotel?: (hotelId: string) => void;
+  onSelectProfile?: (showBookings?: boolean) => void;
   searchParams?: any;
 }
 
-export default function HotelListScreen({ onBack, onChangeSearch, onBookHotel, searchParams }: HotelListScreenProps) {
+export default function HotelListScreen({ onBack, onChangeSearch, onBookHotel, onSelectProfile, searchParams }: HotelListScreenProps) {
   const [activeTab, setActiveTab] = useState<BottomTabType>('Home');
   const [favorites, setFavorites] = useState<{ [key: string]: boolean }>({});
   const [activeFilter, setActiveFilter] = useState<string>('rec');
@@ -508,13 +509,16 @@ export default function HotelListScreen({ onBack, onChangeSearch, onBookHotel, s
           />
         )}
 
-        {/* Bottom Tab Navigation */}
         <BottomTabNavigation
           activeTab={activeTab}
           onChangeTab={(tab: BottomTabType) => {
             setActiveTab(tab);
             if (tab === 'Home' && onBack) {
               onBack();
+            } else if (tab === 'My Account' && onSelectProfile) {
+              onSelectProfile(false);
+            } else if (tab === 'Bookings' && onSelectProfile) {
+              onSelectProfile(true);
             }
           }}
         />

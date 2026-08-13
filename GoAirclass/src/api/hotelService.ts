@@ -71,7 +71,7 @@ export const hotelService = {
   },
 
   getMyBookings: async () => {
-    const response = await apiClient.get('/hotels/my-bookings');
+    const response = await apiClient.get(`/hotels/my-bookings?t=${Date.now()}`);
     return response.data;
   },
 

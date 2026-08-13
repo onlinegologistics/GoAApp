@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, View, BackHandler, Modal } from 'react-native';
+import { ActivityIndicator, View, BackHandler, Modal, Alert, Text, StyleSheet } from 'react-native';
 import Onboarding from './src/components/Onboarding';
 import SearchScreen from './src/FlightScreen/SearchScreen';
 import FlightList from './src/FlightScreen/FlightList';
@@ -14,6 +14,7 @@ import HotelProfileScreen from './src/HotelScreen/HotelProfileScreen';
 import HotelBookingScreen from './src/HotelScreen/HotelBookingScreen';
 import ProfileScreen from './src/Profile/ProfileScreen';
 import { setAuthToken, getAuthToken } from './src/api';
+import { flightService } from './src/api/flightService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ScreenType = 'onboarding' | 'login' | 'register' | 'home' | 'hotelSearch' | 'hotelList' | 'hotelProfile' | 'hotelBooking' | 'search' | 'flightList' | 'fareSelection' | 'passengerDetails' | 'profile';
@@ -27,10 +28,22 @@ function App() {
   const [selectedRoomData, setSelectedRoomData] = useState<any>(null);
   const [selectedRatePlanData, setSelectedRatePlanData] = useState<any>(null);
   const [previousScreen, setPreviousScreen] = useState<ScreenType>('home');
+  const [profileShowBookings, setProfileShowBookings] = useState(false);
+  const [flightSearchParams, setFlightSearchParams] = useState<any>(null);
+  const [searchTripType, setSearchTripType] = useState<'One Way' | 'Round Trip' | 'Multi City'>('One Way');
   const [flightSearchResults, setFlightSearchResults] = useState<any>(null);
   const [selectedFlight, setSelectedFlight] = useState<any>(null);
   const [selectedOption, setSelectedOption] = useState<any>(null);
   const [sessionId, setSessionId] = useState<string | undefined>();
+  const [selectedOutboundFlight, setSelectedOutboundFlight] = useState<any>(null);
+  const [selectedOutboundOption, setSelectedOutboundOption] = useState<any>(null);
+  const [selectedReturnFlight, setSelectedReturnFlight] = useState<any>(null);
+  const [selectedReturnOption, setSelectedReturnOption] = useState<any>(null);
+  const [outboundSessionId, setOutboundSessionId] = useState<string | undefined>();
+  const [returnSessionId, setReturnSessionId] = useState<string | undefined>();
+  const [roundTripFlowStep, setRoundTripFlowStep] = useState<'outbound' | 'return' | 'none'>('none');
+  const [loadingReturn, setLoadingReturn] = useState(false);
+  const [outboundSearchResults, setOutboundSearchResults] = useState<any>(null);
 
   useEffect(() => {
     const handleBackPress = () => {
@@ -153,8 +166,9 @@ function App() {
         }}
         onBack={() => setCurrentScreen('home')}
         onSelectFlights={() => setCurrentScreen('search')}
-        onSelectProfile={() => {
+        onSelectProfile={(showBookings) => {
           setPreviousScreen('hotelSearch');
+          setProfileShowBookings(!!showBookings);
           setCurrentScreen('profile');
         }}
       />
@@ -169,6 +183,11 @@ function App() {
         onBookHotel={(hotelId) => {
           setSelectedHotelId(hotelId);
           setCurrentScreen('hotelProfile');
+        }}
+        onSelectProfile={(showBookings) => {
+          setPreviousScreen('hotelList');
+          setProfileShowBookings(!!showBookings);
+          setCurrentScreen('profile');
         }}
         searchParams={hotelSearchParams}
       />
@@ -209,24 +228,99 @@ function App() {
     return (
       <View style={{ flex: 1 }}>
         <FlightList
-          onBack={() => setCurrentScreen('search')}
-          onSelectFlight={(flight) => {
+          onBack={() => {
+            if (searchTripType === 'Round Trip' && roundTripFlowStep === 'return') {
+              setFlightSearchResults(outboundSearchResults);
+              setRoundTripFlowStep('outbound');
+            } else {
+              setCurrentScreen('search');
+            }
+          }}
+          onSelectFlight={(flight, updatedResults) => {
             setSelectedFlight(flight);
+            if (updatedResults) {
+              setFlightSearchResults(updatedResults);
+            }
             setCurrentScreen('fareSelection');
           }}
           searchResults={flightSearchResults}
+          tripType={searchTripType}
+          flightSearchParams={flightSearchParams}
+          selectionStep={roundTripFlowStep === 'return' ? 'return' : 'outbound'}
         />
         {currentScreen === 'fareSelection' && (
           <FlightFareSelection
             searchResults={flightSearchResults}
             selectedFlight={selectedFlight}
             onClose={() => setCurrentScreen('flightList')}
-            onContinue={(opt, sessId) => {
-              if (opt) setSelectedOption(opt);
-              if (sessId) setSessionId(sessId);
-              setCurrentScreen('passengerDetails');
+            onContinue={async (opt, sessId) => {
+              if (searchTripType === 'Round Trip' && roundTripFlowStep === 'outbound') {
+                setSelectedOutboundFlight(selectedFlight);
+                setSelectedOutboundOption(opt);
+                setOutboundSessionId(sessId || sessionId);
+                
+                setLoadingReturn(true);
+                setCurrentScreen('flightList');
+                try {
+                  console.log('[App] Searching return flights with params:', {
+                    from: flightSearchParams?.to,
+                    to: flightSearchParams?.from,
+                    departDate: flightSearchParams?.returnDate,
+                    passengers: flightSearchParams?.passengers,
+                  });
+                  const res = await flightService.searchFlights({
+                    from: flightSearchParams.to,
+                    to: flightSearchParams.from,
+                    departDate: flightSearchParams.returnDate,
+                    passengers: flightSearchParams.passengers,
+                  });
+                  if (res && res.success) {
+                    setFlightSearchResults(res);
+                    setRoundTripFlowStep('return');
+                  } else {
+                    Alert.alert('Error', 'Failed to retrieve return flights.');
+                  }
+                } catch (e: any) {
+                  Alert.alert('Error', e.message || 'Error fetching return flights.');
+                } finally {
+                  setLoadingReturn(false);
+                }
+              } else if (searchTripType === 'Round Trip' && roundTripFlowStep === 'return') {
+                setSelectedReturnFlight(selectedFlight);
+                setSelectedReturnOption(opt);
+                setReturnSessionId(sessId || sessionId);
+                
+                // Combine them
+                const combinedFlight = {
+                  ...selectedFlight,
+                  id: `${selectedOutboundFlight.id}__${selectedFlight.id}`,
+                  isCombinedRoundTrip: true,
+                  outboundFlight: selectedOutboundFlight,
+                  returnFlight: selectedFlight,
+                  price: `₹${((selectedOutboundFlight.rawPrice || 0) + (selectedFlight.rawPrice || 0)).toLocaleString()}`,
+                  rawPrice: (selectedOutboundFlight.rawPrice || 0) + (selectedFlight.rawPrice || 0),
+                };
+                setSelectedFlight(combinedFlight);
+                
+                // Set options for checkout page
+                setSelectedOption(opt);
+                setSessionId(sessId || sessionId);
+                
+                setRoundTripFlowStep('none');
+                setCurrentScreen('passengerDetails');
+              } else {
+                if (opt) setSelectedOption(opt);
+                if (sessId) setSessionId(sessId);
+                setCurrentScreen('passengerDetails');
+              }
             }}
           />
+        )}
+        {loadingReturn && (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255, 255, 255, 0.75)', justifyContent: 'center', alignItems: 'center', zIndex: 999 }]}>
+            <ActivityIndicator size="large" color="#ea580c" />
+            <Text style={{ marginTop: 12, color: '#0f172a', fontWeight: '700', fontSize: 15, fontFamily: 'sans-serif' }}>Searching Return Flights...</Text>
+          </View>
         )}
       </View>
     );
@@ -241,6 +335,10 @@ function App() {
         selectedFlight={selectedFlight}
         selectedOption={selectedOption}
         sessionId={sessionId}
+        outboundSearchResults={outboundSearchResults}
+        outboundOption={selectedOutboundOption}
+        outboundSessionId={outboundSessionId}
+        flightSearchParams={flightSearchParams}
       />
     );
   }
@@ -253,20 +351,30 @@ function App() {
           setAuthToken(null);
           setCurrentScreen('login');
         }}
+        initialShowBookings={profileShowBookings}
       />
     );
   }
 
   return (
     <SearchScreen
-      onSearch={(results) => {
+      onSearch={(results, tripType, params) => {
         setFlightSearchResults(results);
+        setOutboundSearchResults(results);
+        setSearchTripType(tripType || 'One Way');
+        setFlightSearchParams(params);
+        if (tripType === 'Round Trip') {
+          setRoundTripFlowStep('outbound');
+        } else {
+          setRoundTripFlowStep('none');
+        }
         setCurrentScreen('flightList');
       }}
       onBack={() => setCurrentScreen('home')}
       onSelectHotels={() => setCurrentScreen('hotelSearch')}
-      onSelectProfile={() => {
+      onSelectProfile={(showBookings) => {
         setPreviousScreen('search');
+        setProfileShowBookings(!!showBookings);
         setCurrentScreen('profile');
       }}
     />

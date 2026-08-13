@@ -1,22 +1,17 @@
 {
-  "timestamp": "2026-08-11T17:34:11.598Z",
-  "sessionId": "65273301_ccdf5f0f-56aa-432f-9e97-880b92647252-260811183340",
-  "searchId": "DC_Search-6a5a476d-b5f3-48e8-ad3e-056593b16669",
+  "timestamp": "2026-08-12T14:32:48.506Z",
+  "sessionId": "65273301_4ffe3643-5a2d-4d67-995a-14c08bdd95fd-260812153230",
+  "searchId": "DC_Search-0df12eaf-6c48-491d-95c6-8255990d1266",
   "payload": {
-    "flightPreviewId": "f1702b9e-8f6e-4570-8353-ed1459eaf539",
+    "flightPreviewId": "85fa667f-b7c3-432e-9a5b-8312f7bdc0e9",
     "travelOptions": [
       {
-        "travelOptionId": "6E-882-DEL-HYD-1786470300__6E-351-HYD-PNQ-1786489500",
+        "travelOptionId": "6E-5386-BOM-HYD-1787910300__6E-7543-HYD-NAG-1787921700",
         "subTravelOptions": [
           {
             "subTravelType": "FLIGHT",
-            "subTravelOptionId": "6E-882-DEL-HYD-1786470300",
-            "fareId": "FARE_FAMILY__11/08/2026__6E^6E__6E^6E__DEL_PNQ__true__RETAIL__E__DOM__OW__UNKNOWN__S050__INDIGO UPFRONT,INDIGO UPFRONT__AVN+Z51PLuEPIWIScXoUp+SKAMAj3SZsUKB+bOqAPkWpIJJWgSA+PFcfr5I+zUi7vBUF4W6EBdFp0rCDZ91lr4M0RQmk26KVHEfE8mj6A4PR1trC3TVZEVqaZ9QP53fYbfmGBLGB0qMCtWATTFYcy7rnt/7UJfqyyqYURMxo8mcqmstadX1Tw+44MGPg18GB3V7mEvCXnpuiQC8SdjLaZuvc7aKehOnnvsid73vLiBKbAQlgrZQ+hzXgXz2r/xPBBRRrGLRy1f5aMCoUrEuYFZ2Jf2yBxTNKUDrRkX9r24xR7vzn4/k3wkZP3Ek=~~V3"
-          },
-          {
-            "subTravelType": "FLIGHT",
-            "subTravelOptionId": "6E-351-HYD-PNQ-1786489500",
-            "fareId": "FARE_FAMILY__11/08/2026__6E^6E__6E^6E__DEL_PNQ__true__RETAIL__E__DOM__OW__UNKNOWN__S050__INDIGO UPFRONT,INDIGO UPFRONT__AVN+Z51PLuEPIWIScXoUp+SKAMAj3SZsUKB+bOqAPkWpIJJWgSA+PFcfr5I+zUi7vBUF4W6EBdFp0rCDZ91lr4M0RQmk26KVHEfE8mj6A4PR1trC3TVZEVqaZ9QP53fYbfmGBLGB0qMCtWATTFYcy7rnt/7UJfqyyqYURMxo8mcqmstadX1Tw+44MGPg18GB3V7mEvCXnpuiQC8SdjLaZuvc7aKehOnnvsid73vLiBKbAQlgrZQ+hzXgXz2r/xPBBRRrGLRy1f5aMCoUrEuYFZ2Jf2yBxTNKUDrRkX9r24xR7vzn4/k3wkZP3Ek=~~V3"
+            "subTravelOptionId": "6E-5386-BOM-HYD-1787910300__6E-7543-HYD-NAG-1787921700",
+            "fareId": "REGULAR__28/08/2026__6E^6E__6E^6E__BOM_NAG__true__RETAIL__E__DOM__OW__UNKNOWN__S050__REGULAR,REGULAR__AVN+Z50T1eSMGXbLckT3F2CH5VJE7+WLrJab+oOFBPqOYztCGWRII5DBYyB3YtZ34IWU4j2m1S70TW2s3RwTKsjkQ7P1hkVMadxJde7GWd6sOpkSLtZbvI/u3rjNpqQSAOFlSldr3vBkL+yaanzayWmiQUbi+Y6KBtBk6W0jwnmp2fbiaF97poDb91GWcXtGSqSsCumILkkVlvKYbDOJYDCM1YH6Q4a+aIA1CgK0dIWqqFJ5h0nLvRjpcNUp9DdujoF74v2rcJnIodSFXzbgACHyV9Z6F2/YwYghXXAopb3Tv1W3hrEDtnwvJf8qwg==~~V3"
           }
         ]
       }
@@ -24,11 +19,11 @@
     "passengerInformation": {
       "passengers": [
         {
-          "firstName": "Rutuja",
-          "lastName": "Dhayatidak",
+          "firstName": "124",
+          "lastName": "13466",
           "middleName": "",
           "gender": "MALE",
-          "email": "rdhayatidak@gmail.com",
+          "email": "rahul@example.com",
           "travellerType": "ADT",
           "dob": "2001-08-07",
           "nationalityCode": "IN",
@@ -39,22 +34,15 @@
           "title": "MR",
           "subTravelOptionAncillaries": [
             {
-              "subTravelOptionId": "6E-882-DEL-HYD-1786470300",
+              "subTravelOptionId": "6E-5386-BOM-HYD-1787910300__6E-7543-HYD-NAG-1787921700",
               "subTravelType": "FLIGHT",
               "flightAncillaries": [
                 {
-                  "flightId": "6E-882-DEL-HYD-1786470300",
+                  "flightId": "6E-5386-BOM-HYD-1787910300",
                   "ancillaries": []
-                }
-              ],
-              "ancillaries": []
-            },
-            {
-              "subTravelOptionId": "6E-351-HYD-PNQ-1786489500",
-              "subTravelType": "FLIGHT",
-              "flightAncillaries": [
+                },
                 {
-                  "flightId": "6E-351-HYD-PNQ-1786489500",
+                  "flightId": "6E-7543-HYD-NAG-1787921700",
                   "ancillaries": []
                 }
               ],
@@ -66,10 +54,10 @@
       ]
     },
     "customerInformation": {
-      "firstName": "Rutuja",
-      "lastName": "Dhayatidak",
+      "firstName": "124",
+      "lastName": "13466",
       "title": "MR",
-      "emailId": "rdhayatidak@gmail.com",
+      "emailId": "rahul@example.com",
       "address": {
         "countryCode": "91"
       },
@@ -82,13 +70,14 @@
       "currency": "INR",
       "domain": "IN",
       "sectorType": "DOMESTIC",
-      "itineraryId": "65273301_ccdf5f0f-56aa-432f-9e97-880b92647252-260811183340"
+      "itineraryId": "65273301_4ffe3643-5a2d-4d67-995a-14c08bdd95fd-260812153230"
     }
   },
-  "error": "Request failed with status code 500",
-  "statusCode": 500,
+  "error": "Request failed with status code 400",
+  "statusCode": 400,
   "response": {
-    "errorMessage": "Hold failed",
-    "errorCode": 531
+    "message": "Invalid passenger first name",
+    "code": 4021,
+    "errorType": "FIRST_NAME_VALIDATION_ERROR"
   }
 }

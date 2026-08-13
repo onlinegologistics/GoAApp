@@ -1,15 +1,15 @@
 {
   "travelOptions": [
     {
-      "id": "AI-2404-PNQ-DEL-1788048300__AI-2945-DEL-BOM-1788067800",
-      "searchIntent": "BLR_BOM",
+      "id": "AI-2986-BOM-DEL-1786554900__AI-1797-DEL-PNQ-1786580100",
+      "searchIntent": "BOM_BLR",
       "subTravelOptions": [
         {
-          "id": "AI-2404-PNQ-DEL-1788048300__AI-2945-DEL-BOM-1788067800",
+          "id": "AI-2986-BOM-DEL-1786554900__AI-1797-DEL-PNQ-1786580100",
           "flights": [
             {
-              "id": "AI-2404-PNQ-DEL-1788048300",
-              "number": "2404",
+              "id": "AI-2986-BOM-DEL-1786554900",
+              "number": "2986",
               "airlineCode": "AI",
               "airCraftType": null,
               "equipmentCode": null,
@@ -34,7 +34,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 650,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -58,12 +58,12 @@
                                         "xcoordinate": 11,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 550,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -87,12 +87,12 @@
                                         "xcoordinate": 11,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 650,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -116,12 +116,12 @@
                                         "xcoordinate": 11,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 650,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -145,12 +145,12 @@
                                         "xcoordinate": 11,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 550,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -174,12 +174,12 @@
                                         "xcoordinate": 11,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 650,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -203,7 +203,7 @@
                                         "xcoordinate": 11,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -214,7 +214,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -236,12 +236,12 @@
                                         "xcoordinate": 12,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -263,12 +263,12 @@
                                         "xcoordinate": 12,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -290,12 +290,12 @@
                                         "xcoordinate": 12,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -317,12 +317,12 @@
                                         "xcoordinate": 12,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -344,12 +344,12 @@
                                         "xcoordinate": 12,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -371,7 +371,7 @@
                                         "xcoordinate": 12,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -382,7 +382,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -404,12 +404,12 @@
                                         "xcoordinate": 14,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -431,12 +431,12 @@
                                         "xcoordinate": 14,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -458,12 +458,12 @@
                                         "xcoordinate": 14,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -485,12 +485,12 @@
                                         "xcoordinate": 14,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -512,12 +512,12 @@
                                         "xcoordinate": 14,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -539,7 +539,7 @@
                                         "xcoordinate": 14,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -550,7 +550,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -572,12 +572,12 @@
                                         "xcoordinate": 15,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -599,12 +599,12 @@
                                         "xcoordinate": 15,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -626,12 +626,12 @@
                                         "xcoordinate": 15,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -653,12 +653,12 @@
                                         "xcoordinate": 15,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -680,12 +680,12 @@
                                         "xcoordinate": 15,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -707,7 +707,7 @@
                                         "xcoordinate": 15,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -718,7 +718,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -740,12 +740,12 @@
                                         "xcoordinate": 16,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -767,12 +767,12 @@
                                         "xcoordinate": 16,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -794,12 +794,12 @@
                                         "xcoordinate": 16,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -821,12 +821,12 @@
                                         "xcoordinate": 16,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -848,12 +848,12 @@
                                         "xcoordinate": 16,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -875,7 +875,7 @@
                                         "xcoordinate": 16,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -886,7 +886,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -908,12 +908,12 @@
                                         "xcoordinate": 17,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -935,12 +935,12 @@
                                         "xcoordinate": 17,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -962,12 +962,12 @@
                                         "xcoordinate": 17,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -989,12 +989,12 @@
                                         "xcoordinate": 17,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1016,12 +1016,12 @@
                                         "xcoordinate": 17,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1043,7 +1043,7 @@
                                         "xcoordinate": 17,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -1054,7 +1054,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1076,12 +1076,12 @@
                                         "xcoordinate": 18,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1103,12 +1103,12 @@
                                         "xcoordinate": 18,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1130,12 +1130,12 @@
                                         "xcoordinate": 18,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1157,12 +1157,12 @@
                                         "xcoordinate": 18,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1184,12 +1184,12 @@
                                         "xcoordinate": 18,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1211,7 +1211,7 @@
                                         "xcoordinate": 18,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -1222,7 +1222,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 1200,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1244,12 +1244,12 @@
                                         "xcoordinate": 7,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 1100,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1271,12 +1271,12 @@
                                         "xcoordinate": 7,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 1200,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1298,12 +1298,12 @@
                                         "xcoordinate": 7,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 1200,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1325,12 +1325,12 @@
                                         "xcoordinate": 7,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 1100,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1352,12 +1352,12 @@
                                         "xcoordinate": 7,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 1200,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1379,7 +1379,7 @@
                                         "xcoordinate": 7,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -1390,7 +1390,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1412,12 +1412,12 @@
                                         "xcoordinate": 8,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1439,12 +1439,12 @@
                                         "xcoordinate": 8,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1466,7 +1466,7 @@
                                         "xcoordinate": 8,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
@@ -1493,12 +1493,12 @@
                                         "xcoordinate": 8,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": true
                                     },
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1520,12 +1520,12 @@
                                         "xcoordinate": 8,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1547,7 +1547,7 @@
                                         "xcoordinate": 8,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -1558,7 +1558,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1581,12 +1581,12 @@
                                         "xcoordinate": 9,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1609,12 +1609,12 @@
                                         "xcoordinate": 9,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1637,12 +1637,12 @@
                                         "xcoordinate": 9,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1665,12 +1665,12 @@
                                         "xcoordinate": 9,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1693,12 +1693,12 @@
                                         "xcoordinate": 9,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 400,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1721,7 +1721,7 @@
                                         "xcoordinate": 9,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -1732,7 +1732,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 650,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1757,12 +1757,12 @@
                                         "xcoordinate": 10,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 550,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1787,12 +1787,12 @@
                                         "xcoordinate": 10,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 650,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1817,12 +1817,12 @@
                                         "xcoordinate": 10,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 650,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1847,12 +1847,12 @@
                                         "xcoordinate": 10,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 550,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1877,12 +1877,12 @@
                                         "xcoordinate": 10,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 650,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1907,7 +1907,7 @@
                                         "xcoordinate": 10,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -1924,7 +1924,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1946,12 +1946,12 @@
                                         "xcoordinate": 22,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -1973,12 +1973,12 @@
                                         "xcoordinate": 22,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2000,12 +2000,12 @@
                                         "xcoordinate": 22,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2027,12 +2027,12 @@
                                         "xcoordinate": 22,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2054,12 +2054,12 @@
                                         "xcoordinate": 22,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2081,7 +2081,7 @@
                                         "xcoordinate": 22,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -2092,7 +2092,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2114,12 +2114,12 @@
                                         "xcoordinate": 23,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2141,12 +2141,12 @@
                                         "xcoordinate": 23,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2168,12 +2168,12 @@
                                         "xcoordinate": 23,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2195,12 +2195,12 @@
                                         "xcoordinate": 23,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2222,12 +2222,12 @@
                                         "xcoordinate": 23,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2249,7 +2249,7 @@
                                         "xcoordinate": 23,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -2260,7 +2260,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2282,7 +2282,7 @@
                                         "xcoordinate": 24,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
@@ -2314,7 +2314,7 @@
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2336,12 +2336,12 @@
                                         "xcoordinate": 24,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2363,7 +2363,7 @@
                                         "xcoordinate": 24,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
@@ -2395,7 +2395,7 @@
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2417,7 +2417,7 @@
                                         "xcoordinate": 24,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -2428,7 +2428,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2450,7 +2450,7 @@
                                         "xcoordinate": 25,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
@@ -2482,7 +2482,7 @@
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2504,12 +2504,12 @@
                                         "xcoordinate": 25,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2531,7 +2531,7 @@
                                         "xcoordinate": 25,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
@@ -2563,7 +2563,7 @@
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2585,7 +2585,7 @@
                                         "xcoordinate": 25,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -2596,7 +2596,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2618,7 +2618,7 @@
                                         "xcoordinate": 26,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
@@ -2650,7 +2650,7 @@
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2672,12 +2672,12 @@
                                         "xcoordinate": 26,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2699,7 +2699,7 @@
                                         "xcoordinate": 26,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
@@ -2731,7 +2731,7 @@
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2753,7 +2753,7 @@
                                         "xcoordinate": 26,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -2764,7 +2764,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2786,7 +2786,7 @@
                                         "xcoordinate": 27,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
@@ -2818,7 +2818,7 @@
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2840,12 +2840,12 @@
                                         "xcoordinate": 27,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2867,7 +2867,7 @@
                                         "xcoordinate": 27,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
@@ -2899,7 +2899,7 @@
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -2921,7 +2921,7 @@
                                         "xcoordinate": 27,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -2954,7 +2954,7 @@
                                         "xcoordinate": 28,
                                         "ycoordinate": 1
                                       },
-                                      "availability": true,
+                                      "availability": false,
                                       "free": true
                                     },
                                     {
@@ -3035,7 +3035,7 @@
                                         "xcoordinate": 28,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": true
                                     },
                                     {
@@ -3062,7 +3062,7 @@
                                         "xcoordinate": 28,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": true
                                     },
                                     {
@@ -3089,7 +3089,7 @@
                                         "xcoordinate": 28,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": true
                                     }
                                   ]
@@ -3294,12 +3294,12 @@
                                         "xcoordinate": 19,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3321,12 +3321,12 @@
                                         "xcoordinate": 19,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3348,12 +3348,12 @@
                                         "xcoordinate": 19,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3375,12 +3375,12 @@
                                         "xcoordinate": 19,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3402,7 +3402,7 @@
                                         "xcoordinate": 19,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
@@ -3427,7 +3427,7 @@
                                         "xcoordinate": 19,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -3438,7 +3438,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3460,12 +3460,12 @@
                                         "xcoordinate": 20,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3487,12 +3487,12 @@
                                         "xcoordinate": 20,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3514,12 +3514,12 @@
                                         "xcoordinate": 20,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3541,12 +3541,12 @@
                                         "xcoordinate": 20,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3568,12 +3568,12 @@
                                         "xcoordinate": 20,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3595,7 +3595,7 @@
                                         "xcoordinate": 20,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -3606,7 +3606,7 @@
                                   "seats": [
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3628,12 +3628,12 @@
                                         "xcoordinate": 21,
                                         "ycoordinate": 1
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3655,12 +3655,12 @@
                                         "xcoordinate": 21,
                                         "ycoordinate": 2
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3682,12 +3682,12 @@
                                         "xcoordinate": 21,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3709,12 +3709,12 @@
                                         "xcoordinate": 21,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3736,12 +3736,12 @@
                                         "xcoordinate": 21,
                                         "ycoordinate": 6
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 0,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -3763,7 +3763,7 @@
                                         "xcoordinate": 21,
                                         "ycoordinate": 7
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": false
                                     }
                                   ]
@@ -4340,8 +4340,8 @@
               ]
             },
             {
-              "id": "AI-2945-DEL-BOM-1788067800",
-              "number": "2945",
+              "id": "AI-1797-DEL-PNQ-1786580100",
+              "number": "1797",
               "airlineCode": "AI",
               "airCraftType": null,
               "equipmentCode": null,
@@ -5825,7 +5825,7 @@
                                         "xcoordinate": 8,
                                         "ycoordinate": 5
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": true
                                     },
                                     {
@@ -5974,7 +5974,7 @@
                                     },
                                     {
                                       "amount": {
-                                        "price": 250,
+                                        "price": 400,
                                         "currency": "INR",
                                         "priceBreakDownList": []
                                       },
@@ -7340,7 +7340,7 @@
                                         "xcoordinate": 28,
                                         "ycoordinate": 3
                                       },
-                                      "availability": false,
+                                      "availability": true,
                                       "free": true
                                     },
                                     {
@@ -8672,446 +8672,7 @@
               ]
             }
           ],
-          "ancillaries": [
-            {
-              "type": "BAGGAGE",
-              "baggageList": [
-                {
-                  "amount": {
-                    "price": 14112,
-                    "currency": "INR",
-                    "priceBreakDownList": []
-                  },
-                  "id": "XBAG_15.0",
-                  "isRefundable": false,
-                  "additionalProperties": {
-                    "unit": "KG",
-                    "code": "XBAG",
-                    "quantity": "15.0",
-                    "rfisc": "0C1",
-                    "rfic": "C"
-                  },
-                  "baggageInfos": [
-                    {
-                      "weight": {
-                        "type": "WEIGHT",
-                        "quantity": 15,
-                        "unit": "KG"
-                      },
-                      "dimension": null,
-                      "piece": null
-                    }
-                  ],
-                  "type": "ADDON",
-                  "allowedPaxTypes": [
-                    "ADULT",
-                    "CHILD",
-                    "SENIOR_CITIZEN"
-                  ],
-                  "description": null,
-                  "code": "XBAG_15.0",
-                  "isFreeBaggageInclusive": false
-                },
-                {
-                  "amount": {
-                    "price": 18816,
-                    "currency": "INR",
-                    "priceBreakDownList": []
-                  },
-                  "id": "XBAG_20.0",
-                  "isRefundable": false,
-                  "additionalProperties": {
-                    "unit": "KG",
-                    "code": "XBAG",
-                    "quantity": "20.0",
-                    "rfisc": "0C2",
-                    "rfic": "C"
-                  },
-                  "baggageInfos": [
-                    {
-                      "weight": {
-                        "type": "WEIGHT",
-                        "quantity": 20,
-                        "unit": "KG"
-                      },
-                      "dimension": null,
-                      "piece": null
-                    }
-                  ],
-                  "type": "ADDON",
-                  "allowedPaxTypes": [
-                    "ADULT",
-                    "CHILD",
-                    "SENIOR_CITIZEN"
-                  ],
-                  "description": null,
-                  "code": "XBAG_20.0",
-                  "isFreeBaggageInclusive": false
-                },
-                {
-                  "amount": {
-                    "price": 27784,
-                    "currency": "INR",
-                    "priceBreakDownList": []
-                  },
-                  "id": "XBAG_25.0",
-                  "isRefundable": false,
-                  "additionalProperties": {
-                    "unit": "KG",
-                    "code": "XBAG",
-                    "quantity": "25.0",
-                    "rfisc": "0C4",
-                    "rfic": "C"
-                  },
-                  "baggageInfos": [
-                    {
-                      "weight": {
-                        "type": "WEIGHT",
-                        "quantity": 25,
-                        "unit": "KG"
-                      },
-                      "dimension": null,
-                      "piece": null
-                    }
-                  ],
-                  "type": "ADDON",
-                  "allowedPaxTypes": [
-                    "ADULT",
-                    "CHILD",
-                    "SENIOR_CITIZEN"
-                  ],
-                  "description": null,
-                  "code": "XBAG_25.0",
-                  "isFreeBaggageInclusive": false
-                },
-                {
-                  "amount": {
-                    "price": 32928,
-                    "currency": "INR",
-                    "priceBreakDownList": []
-                  },
-                  "id": "XBAG_35.0",
-                  "isRefundable": false,
-                  "additionalProperties": {
-                    "unit": "KG",
-                    "code": "XBAG",
-                    "quantity": "35.0",
-                    "rfisc": "0C7",
-                    "rfic": "C"
-                  },
-                  "baggageInfos": [
-                    {
-                      "weight": {
-                        "type": "WEIGHT",
-                        "quantity": 35,
-                        "unit": "KG"
-                      },
-                      "dimension": null,
-                      "piece": null
-                    }
-                  ],
-                  "type": "ADDON",
-                  "allowedPaxTypes": [
-                    "ADULT",
-                    "CHILD",
-                    "SENIOR_CITIZEN"
-                  ],
-                  "description": null,
-                  "code": "XBAG_35.0",
-                  "isFreeBaggageInclusive": false
-                },
-                {
-                  "amount": {
-                    "price": 42336,
-                    "currency": "INR",
-                    "priceBreakDownList": []
-                  },
-                  "id": "XBAG_45.0",
-                  "isRefundable": false,
-                  "additionalProperties": {
-                    "unit": "KG",
-                    "code": "XBAG",
-                    "quantity": "45.0",
-                    "rfisc": "0C9",
-                    "rfic": "C"
-                  },
-                  "baggageInfos": [
-                    {
-                      "weight": {
-                        "type": "WEIGHT",
-                        "quantity": 45,
-                        "unit": "KG"
-                      },
-                      "dimension": null,
-                      "piece": null
-                    }
-                  ],
-                  "type": "ADDON",
-                  "allowedPaxTypes": [
-                    "ADULT",
-                    "CHILD",
-                    "SENIOR_CITIZEN"
-                  ],
-                  "description": null,
-                  "code": "XBAG_45.0",
-                  "isFreeBaggageInclusive": false
-                },
-                {
-                  "amount": {
-                    "price": 4704,
-                    "currency": "INR",
-                    "priceBreakDownList": []
-                  },
-                  "id": "XBAG_5.0",
-                  "isRefundable": false,
-                  "additionalProperties": {
-                    "unit": "KG",
-                    "code": "XBAG",
-                    "quantity": "5.0",
-                    "rfisc": "0CW",
-                    "rfic": "C"
-                  },
-                  "baggageInfos": [
-                    {
-                      "weight": {
-                        "type": "WEIGHT",
-                        "quantity": 5,
-                        "unit": "KG"
-                      },
-                      "dimension": null,
-                      "piece": null
-                    }
-                  ],
-                  "type": "ADDON",
-                  "allowedPaxTypes": [
-                    "ADULT",
-                    "CHILD",
-                    "SENIOR_CITIZEN"
-                  ],
-                  "description": null,
-                  "code": "XBAG_5.0",
-                  "isFreeBaggageInclusive": false
-                },
-                {
-                  "amount": {
-                    "price": 9408,
-                    "currency": "INR",
-                    "priceBreakDownList": []
-                  },
-                  "id": "XBAG_10.0",
-                  "isRefundable": false,
-                  "additionalProperties": {
-                    "unit": "KG",
-                    "code": "XBAG",
-                    "quantity": "10.0",
-                    "rfisc": "0CZ",
-                    "rfic": "C"
-                  },
-                  "baggageInfos": [
-                    {
-                      "weight": {
-                        "type": "WEIGHT",
-                        "quantity": 10,
-                        "unit": "KG"
-                      },
-                      "dimension": null,
-                      "piece": null
-                    }
-                  ],
-                  "type": "ADDON",
-                  "allowedPaxTypes": [
-                    "ADULT",
-                    "CHILD",
-                    "SENIOR_CITIZEN"
-                  ],
-                  "description": null,
-                  "code": "XBAG_10.0",
-                  "isFreeBaggageInclusive": false
-                },
-                {
-                  "amount": {
-                    "price": 28224,
-                    "currency": "INR",
-                    "priceBreakDownList": []
-                  },
-                  "id": "XBAG_30.0",
-                  "isRefundable": false,
-                  "additionalProperties": {
-                    "unit": "KG",
-                    "code": "XBAG",
-                    "quantity": "30.0",
-                    "rfisc": "0FL",
-                    "rfic": "C"
-                  },
-                  "baggageInfos": [
-                    {
-                      "weight": {
-                        "type": "WEIGHT",
-                        "quantity": 30,
-                        "unit": "KG"
-                      },
-                      "dimension": null,
-                      "piece": null
-                    }
-                  ],
-                  "type": "ADDON",
-                  "allowedPaxTypes": [
-                    "ADULT",
-                    "CHILD",
-                    "SENIOR_CITIZEN"
-                  ],
-                  "description": null,
-                  "code": "XBAG_30.0",
-                  "isFreeBaggageInclusive": false
-                },
-                {
-                  "amount": {
-                    "price": 75264,
-                    "currency": "INR",
-                    "priceBreakDownList": []
-                  },
-                  "id": "XBAG_80.0",
-                  "isRefundable": false,
-                  "additionalProperties": {
-                    "unit": "KG",
-                    "code": "XBAG",
-                    "quantity": "80.0",
-                    "rfisc": "0GX",
-                    "rfic": "C"
-                  },
-                  "baggageInfos": [
-                    {
-                      "weight": {
-                        "type": "WEIGHT",
-                        "quantity": 80,
-                        "unit": "KG"
-                      },
-                      "dimension": null,
-                      "piece": null
-                    }
-                  ],
-                  "type": "ADDON",
-                  "allowedPaxTypes": [
-                    "ADULT",
-                    "CHILD",
-                    "SENIOR_CITIZEN"
-                  ],
-                  "description": null,
-                  "code": "XBAG_80.0",
-                  "isFreeBaggageInclusive": false
-                },
-                {
-                  "amount": {
-                    "price": 61152,
-                    "currency": "INR",
-                    "priceBreakDownList": []
-                  },
-                  "id": "XBAG_65.0",
-                  "isRefundable": false,
-                  "additionalProperties": {
-                    "unit": "KG",
-                    "code": "XBAG",
-                    "quantity": "65.0",
-                    "rfisc": "0GY",
-                    "rfic": "C"
-                  },
-                  "baggageInfos": [
-                    {
-                      "weight": {
-                        "type": "WEIGHT",
-                        "quantity": 65,
-                        "unit": "KG"
-                      },
-                      "dimension": null,
-                      "piece": null
-                    }
-                  ],
-                  "type": "ADDON",
-                  "allowedPaxTypes": [
-                    "ADULT",
-                    "CHILD",
-                    "SENIOR_CITIZEN"
-                  ],
-                  "description": null,
-                  "code": "XBAG_65.0",
-                  "isFreeBaggageInclusive": false
-                },
-                {
-                  "amount": {
-                    "price": 90318,
-                    "currency": "INR",
-                    "priceBreakDownList": []
-                  },
-                  "id": "XBAG_96.0",
-                  "isRefundable": false,
-                  "additionalProperties": {
-                    "unit": "KG",
-                    "code": "XBAG",
-                    "quantity": "96.0",
-                    "rfisc": "0GZ",
-                    "rfic": "C"
-                  },
-                  "baggageInfos": [
-                    {
-                      "weight": {
-                        "type": "WEIGHT",
-                        "quantity": 96,
-                        "unit": "KG"
-                      },
-                      "dimension": null,
-                      "piece": null
-                    }
-                  ],
-                  "type": "ADDON",
-                  "allowedPaxTypes": [
-                    "ADULT",
-                    "CHILD",
-                    "SENIOR_CITIZEN"
-                  ],
-                  "description": null,
-                  "code": "XBAG_96.0",
-                  "isFreeBaggageInclusive": false
-                },
-                {
-                  "amount": {
-                    "price": 51744,
-                    "currency": "INR",
-                    "priceBreakDownList": []
-                  },
-                  "id": "XBAG_55.0",
-                  "isRefundable": false,
-                  "additionalProperties": {
-                    "unit": "KG",
-                    "code": "XBAG",
-                    "quantity": "55.0",
-                    "rfisc": "0I7",
-                    "rfic": "C"
-                  },
-                  "baggageInfos": [
-                    {
-                      "weight": {
-                        "type": "WEIGHT",
-                        "quantity": 55,
-                        "unit": "KG"
-                      },
-                      "dimension": null,
-                      "piece": null
-                    }
-                  ],
-                  "type": "ADDON",
-                  "allowedPaxTypes": [
-                    "ADULT",
-                    "CHILD",
-                    "SENIOR_CITIZEN"
-                  ],
-                  "description": null,
-                  "code": "XBAG_55.0",
-                  "isFreeBaggageInclusive": false
-                }
-              ],
-              "error": null
-            }
-          ]
+          "ancillaries": []
         }
       ]
     }

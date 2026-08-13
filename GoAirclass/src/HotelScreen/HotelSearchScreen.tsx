@@ -33,7 +33,7 @@ interface HotelSearchScreenProps {
   onSearchHotels?: (params?: any) => void;
   onBack?: () => void;
   onSelectFlights?: () => void;
-  onSelectProfile?: () => void;
+  onSelectProfile?: (showBookings?: boolean) => void;
 }
 
 type HotelCategory = 'Flights' | 'Hotels';
@@ -579,7 +579,6 @@ export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlig
           </View>
         </ScrollView>
 
-        {/* Bottom Tab Navigation */}
         <BottomTabNavigation
           activeTab={activeTab}
           onChangeTab={(tab: BottomTabType) => {
@@ -587,7 +586,9 @@ export default function HotelSearchScreen({ onSearchHotels, onBack, onSelectFlig
             if (tab === 'Home' && onBack) {
               onBack();
             } else if (tab === 'My Account' && onSelectProfile) {
-              onSelectProfile();
+              onSelectProfile(false);
+            } else if (tab === 'Bookings' && onSelectProfile) {
+              onSelectProfile(true);
             }
           }}
         />

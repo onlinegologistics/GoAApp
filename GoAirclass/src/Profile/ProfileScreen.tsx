@@ -18,13 +18,14 @@ import MyBookings from './MyBookings';
 interface ProfileScreenProps {
   onBack: () => void;
   onLogout: () => void;
+  initialShowBookings?: boolean;
 }
 
-export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) {
+export default function ProfileScreen({ onBack, onLogout, initialShowBookings = false }: ProfileScreenProps) {
   const [loading, setLoading] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
-  const [showMyBookings, setShowMyBookings] = useState(false);
+  const [showMyBookings, setShowMyBookings] = useState(initialShowBookings);
 
   useEffect(() => {
     const handleBackPress = () => {

@@ -41,6 +41,7 @@ export interface FlightSegmentDetail {
   duration: string;
   layoverText?: string;
   layoverDurationText?: string;
+  isReturn?: boolean;
 }
 
 interface FlightDetailsModalProps {
@@ -61,6 +62,7 @@ interface FlightDetailsModalProps {
   logoChar?: string;
   passengerCount?: number;
   cabinClass?: string;
+  isRoundTrip?: boolean;
 }
 
 export default function FlightDetailsModal({
@@ -81,6 +83,7 @@ export default function FlightDetailsModal({
   logoChar = '✈️',
   passengerCount = 1,
   cabinClass = 'ECONOMY',
+  isRoundTrip = false,
 }: FlightDetailsModalProps) {
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const bgAnim = useRef(new Animated.Value(0)).current;
@@ -159,16 +162,22 @@ export default function FlightDetailsModal({
         {/* Scroll Content */}
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.greyCardContainer}>
-            {/* Header summary inside card */}
             <View style={styles.flightSummaryRow}>
-              <View style={styles.logoCol}>
-                <Image
-                  source={{ uri: airlineLogoUrl || `https://images.kiwi.com/airlines/64/${(airlineCode || '6E').trim().toUpperCase()}.png` }}
-                  style={styles.logoImage}
-                  resizeMode="contain"
-                />
-                <Text style={styles.logoSubtext}>{airlineName}</Text>
-              </View>
+              {isRoundTrip ? (
+                <View style={styles.logoCol}>
+                  <Text style={{ fontSize: 24, textAlign: 'center' }}>✈️</Text>
+                  <Text style={styles.logoSubtext}>Round Trip</Text>
+                </View>
+              ) : (
+                <View style={styles.logoCol}>
+                  <Image
+                    source={{ uri: airlineLogoUrl || `https://images.kiwi.com/airlines/64/${(airlineCode || '6E').trim().toUpperCase()}.png` }}
+                    style={styles.logoImage}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.logoSubtext}>{airlineName}</Text>
+                </View>
+              )}
               <View style={styles.summaryTextCol}>
                 <Text style={styles.summaryDateText}>{headerDate}</Text>
                 <Text style={styles.summaryRouteText}>
@@ -178,8 +187,22 @@ export default function FlightDetailsModal({
             </View>
 
             {/* Vertical Timeline Nodes */}
-            {segmentsList.map((seg, idx) => (
-              <View key={idx}>
+            {segmentsList.map((seg: any, idx) => {
+              const showOutboundLabel = idx === 0 && seg.isReturn === false;
+              const showReturnLabel = seg.isReturn === true && (idx === 0 || segmentsList[idx - 1]?.isReturn === false);
+
+              return (
+                <View key={idx}>
+                  {showOutboundLabel && (
+                    <View style={styles.directionSectionHeader}>
+                      <Text style={styles.directionSectionText}>🛫 OUTBOUND JOURNEY (जाने वाली फ्लाइट)</Text>
+                    </View>
+                  )}
+                  {showReturnLabel && (
+                    <View style={[styles.directionSectionHeader, { marginTop: idx === 0 ? 0 : 28 }]}>
+                      <Text style={styles.directionSectionText}>🛬 RETURN JOURNEY (वापसी की फ्लाइट)</Text>
+                    </View>
+                  )}
                 {/* Departure Node */}
                 <View style={styles.nodeRow}>
                   <View style={styles.timeCol}>
@@ -263,7 +286,7 @@ export default function FlightDetailsModal({
                   </View>
                 )}
               </View>
-            ))}
+            ); })}
           </View>
         </ScrollView>
       </Animated.View>
@@ -529,5 +552,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#dc2626',
     marginTop: 2,
+  },
+  directionSectionHeader: {
+    backgroundColor: '#eff6ff',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    alignSelf: 'stretch',
+  },
+  directionSectionText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1e40af',
+    letterSpacing: 0.5,
+    fontFamily: FONT_FAMILY,
+    textAlign: 'center',
   },
 });

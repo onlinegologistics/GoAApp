@@ -88,10 +88,10 @@ const BriefcaseIcon = ({ color = '#64748b' }: IconProps) => (
 );
 
 interface SearchScreenProps {
-  onSearch: (results: any) => void;
+  onSearch: (results: any, tripType?: 'One Way' | 'Round Trip' | 'Multi City', params?: any) => void;
   onBack?: () => void;
   onSelectHotels?: () => void;
-  onSelectProfile?: () => void;
+  onSelectProfile?: (showBookings?: boolean) => void;
 }
 
 export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelectProfile }: SearchScreenProps) {
@@ -258,6 +258,7 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
 
   const handleSearchClick = async () => {
     let results = null;
+    let params: any = null;
     setLoading(true);
     try {
       const year = departDate.getFullYear();
@@ -265,24 +266,41 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
       const day = String(departDate.getDate()).padStart(2, '0');
       const formattedDepartDate = `${year}-${month}-${day}`;
 
-      results = await flightService.searchFlights({
+      params = {
         from: fromLocation,
         to: toLocation,
         departDate: formattedDepartDate,
         passengers: { adults, children, infants },
-      });
+      };
+
+      if (tripType === 'Round Trip' && returnDate) {
+        const retYear = returnDate.getFullYear();
+        const retMonth = String(returnDate.getMonth() + 1).padStart(2, '0');
+        const retDay = String(returnDate.getDate()).padStart(2, '0');
+        params.returnDate = `${retYear}-${retMonth}-${retDay}`;
+      }
+
+      // For step-by-step model, the first search is outbound only (one-way)
+      const firstSearchParam = { ...params };
+      if (tripType === 'Round Trip') {
+        delete firstSearchParam.returnDate;
+      }
+
+      results = await flightService.searchFlights(firstSearchParam);
     } catch (e: any) {
       console.log('Flight Search API:', e?.message);
     } finally {
       setLoading(false);
     }
-    onSearch(results);
+    onSearch(results, tripType, params);
   };
 
   const handleTabChange = (tab: BottomTabType) => {
     setActiveTab(tab);
     if (tab === 'My Account' && onSelectProfile) {
-      onSelectProfile();
+      onSelectProfile(false);
+    } else if (tab === 'Bookings' && onSelectProfile) {
+      onSelectProfile(true);
     }
   };
 

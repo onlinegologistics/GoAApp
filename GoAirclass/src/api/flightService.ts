@@ -11,6 +11,14 @@ export interface FlightSearchParams {
     infants: number;
   };
   cabinClass?: string;
+  page?: number;
+  limit?: number;
+  stops?: string;
+  airlines?: string[];
+  fareType?: string;
+  maxPrice?: number;
+  depTimeBucket?: string;
+  arrTimeBucket?: string;
 }
 
 export const flightService = {
@@ -42,7 +50,7 @@ export const flightService = {
   },
 
   getMyBookings: async () => {
-    const response = await apiClient.get('/flights/my-bookings');
+    const response = await apiClient.get(`/flights/my-bookings?t=${Date.now()}`);
     return response.data;
   },
 
@@ -73,6 +81,28 @@ export const flightService = {
 
   bookFlight: async (data: any) => {
     const response = await apiClient.post('/flights/book', data);
+    return response.data;
+  },
+
+  getCancelReasons: async (tripId: string) => {
+    const response = await apiClient.get(`/flights/cancel-reasons/${tripId}`);
+    return response.data;
+  },
+
+  cancelFlight: async (bookingId: string, reasonCode: string, remarks?: string) => {
+    const response = await apiClient.post('/flights/cancel', { bookingId, reasonCode, remarks });
+    return response.data;
+  },
+
+  getCancelRefundInfo: async (tripId: string, reasonCode: string, bookingInfoSequence: string = '1') => {
+    const response = await apiClient.get(`/flights/cancel-refund-info/${tripId}/${reasonCode}`, {
+      params: { bookingInfoSequence }
+    });
+    return response.data;
+  },
+
+  getRefundInfo: async (tripId: string) => {
+    const response = await apiClient.get(`/flights/refund-info/${tripId}`);
     return response.data;
   },
 };

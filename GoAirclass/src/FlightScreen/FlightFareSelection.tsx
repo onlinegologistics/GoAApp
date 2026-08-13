@@ -238,7 +238,7 @@ export default function FlightFareSelection({ onClose, onContinue, searchResults
       setSelectedOption(initialFares[0]);
 
       const fetchBenefits = async () => {
-        const dataId = data.dataId;
+        const dataId = data.dataId || data.searchId;
         if (!dataId || fareKeys.length === 0) return;
 
         try {

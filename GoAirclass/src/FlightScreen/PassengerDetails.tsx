@@ -35,6 +35,10 @@ interface PassengerDetailsProps {
   selectedFlight?: any;
   selectedOption?: any;
   sessionId?: string;
+  outboundSearchResults?: any;
+  outboundOption?: any;
+  outboundSessionId?: string;
+  flightSearchParams?: any;
 }
 
 export default function PassengerDetails({
@@ -45,105 +49,177 @@ export default function PassengerDetails({
   selectedFlight,
   selectedOption,
   sessionId,
+  outboundSearchResults,
+  outboundOption,
+  outboundSessionId,
+  flightSearchParams,
 }: PassengerDetailsProps) {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
+  const [outboundPreviewData, setOutboundPreviewData] = useState<any>(null);
+
+  const outboundPreviewObj = outboundPreviewData?.data || outboundPreviewData || {};
+
+  const cleanCode = (val: any) => {
+    if (!val) return '';
+    const str = String(val).trim();
+    const match = str.match(/\(([A-Za-z]{3})\)/);
+    if (match && match[1]) return match[1].toUpperCase();
+    if (str.length === 3) return str.toUpperCase();
+    const wordMatch = str.match(/\b([A-Za-z]{3})\b/);
+    if (wordMatch && wordMatch[1]) return wordMatch[1].toUpperCase();
+    return str.toUpperCase();
+  };
+
+  const formatDateString = (rawDateStr: string) => {
+    if (!rawDateStr) return '';
+    try {
+      const d = new Date(rawDateStr);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' });
+      }
+    } catch(e) {}
+    return rawDateStr;
+  };
+
+  const outboundDate = formatDateString(flightSearchParams?.departDate);
+  const returnDateVal = formatDateString(flightSearchParams?.returnDate);
+
+  const outboundOriginCode = cleanCode(flightSearchParams?.from);
+  const outboundDestCode = cleanCode(flightSearchParams?.to);
+
 
   useEffect(() => {
     const fetchPreviewOnMount = async () => {
-      const data = searchResults?.data?.dataId ? searchResults.data : (searchResults?.dataId ? searchResults : (searchResults?.data || {}));
-      const searchId = data.searchId || data.dataId;
-      const dataId = data.dataId;
-
-      if (!searchId) return;
-
       try {
         setLoadingPreview(true);
 
-        let currentSessionId = sessionId;
-        if (!currentSessionId) {
-          try {
-            const sRes = await flightService.createSession(searchId);
-            currentSessionId = sRes?.data?.sessionId || sRes?.data?.data?.sessionId || sRes?.sessionId;
-          } catch (e) { }
-        }
+        const buildPreviewPayload = async (sResults: any, flight: any, opt: any, sess: string | undefined) => {
+          const data = sResults?.data?.dataId ? sResults.data : (sResults?.dataId ? sResults : (sResults?.data || {}));
+          const searchId = data.searchId || data.dataId;
+          const dataId = data.dataId;
+          if (!searchId) return null;
 
-        let rawTravelOptions: any[] = [];
-        if (Array.isArray(data.travelOptions)) {
-          rawTravelOptions = data.travelOptions;
-        } else if (data.travelOptions && typeof data.travelOptions === 'object') {
-          rawTravelOptions = Object.values(data.travelOptions);
-        }
+          let currentSessionId = sess;
+          if (!currentSessionId) {
+            try {
+              const sRes = await flightService.createSession(searchId);
+              currentSessionId = sRes?.data?.sessionId || sRes?.data?.data?.sessionId || sRes?.sessionId;
+            } catch (e) { }
+          }
 
-        const matchingOpt = rawTravelOptions.find((t: any) =>
-          t?.travelOptionId === selectedFlight?.id || t?.id === selectedFlight?.id
-        ) || rawTravelOptions[0] || {};
+          let rawTravelOptions: any[] = [];
+          if (Array.isArray(data.travelOptions)) {
+            rawTravelOptions = data.travelOptions;
+          } else if (data.travelOptions && typeof data.travelOptions === 'object') {
+            const entries = Object.values(data.travelOptions);
+            entries.forEach((entry: any) => {
+              if (Array.isArray(entry)) {
+                rawTravelOptions.push(...entry);
+              } else if (entry && typeof entry === 'object' && Object.keys(entry).length > 0) {
+                rawTravelOptions.push(entry);
+              }
+            });
+          }
 
-        const travelOptId = matchingOpt?.travelOptionId || matchingOpt?.id || selectedFlight?.id;
-        const subOptId = matchingOpt?.subTravelOptions?.[0]?.subTravelOptionId || travelOptId;
+          const matchingOpt = rawTravelOptions.find((t: any) =>
+            t?.travelOptionId === flight?.id || t?.id === flight?.id
+          ) || rawTravelOptions[0] || {};
 
-        let numPrice = 0;
-        if (typeof selectedOption?.price === 'number') {
-          numPrice = selectedOption.price;
-        } else if (typeof selectedOption?.price === 'string') {
-          numPrice = Math.round(parseFloat(selectedOption.price.replace(/[^0-9.-]+/g, "") || "0"));
-        }
+          const travelOptId = matchingOpt?.travelOptionId || matchingOpt?.id || flight?.id;
+          const subOptId = matchingOpt?.subTravelOptions?.[0]?.subTravelOptionId || travelOptId;
 
-        const selectedOrigin = selectedFlight?.departureCode || selectedFlight?.originCode || selectedFlight?.fromCode || selectedFlight?.from || selectedFlight?.origin;
-        const selectedDest = selectedFlight?.arrivalCode || selectedFlight?.destCode || selectedFlight?.toCode || selectedFlight?.to || selectedFlight?.destination;
+          let numPrice = 0;
+          if (typeof opt?.price === 'number') {
+            numPrice = opt.price;
+          } else if (typeof opt?.price === 'string') {
+            numPrice = Math.round(parseFloat(opt.price.replace(/[^0-9.-]+/g, "") || "0"));
+          }
 
-        let sectors = Object.values(data.searchIntent || {}).map((intent: any, index: number) => {
-          const rawPax = intent.paxInfos || intent.paxCriteria || intent.paxDetails || [];
-          const mappedPax = rawPax.length > 0 ? rawPax.map((pax: any) => ({
-            paxType: pax.paxType || pax.type || "ADT",
-            paxCount: pax.paxCount || pax.count || 1,
-            paxFareType: pax.paxFareType || "DEFAULT"
-          })) : [{ paxType: "ADT", paxCount: 1, paxFareType: "DEFAULT" }];
+          const selectedOrigin = flight?.departureCode || flight?.originCode || flight?.fromCode || flight?.from || flight?.origin;
+          const selectedDest = flight?.arrivalCode || flight?.destCode || flight?.toCode || flight?.to || flight?.destination;
+
+          let sectors = Object.values(data.searchIntent || {}).map((intent: any, index: number) => {
+            const rawPax = intent.paxInfos || intent.paxCriteria || intent.paxDetails || [];
+            const mappedPax = rawPax.length > 0 ? rawPax.map((pax: any) => ({
+              paxType: pax.paxType || pax.type || "ADT",
+              paxCount: pax.paxCount || pax.count || 1,
+              paxFareType: pax.paxFareType || "DEFAULT"
+            })) : [{ paxType: "ADT", paxCount: 1, paxFareType: "DEFAULT" }];
+
+            return {
+              index: intent.index || (index + 1),
+              origin: intent.origin || selectedOrigin || "",
+              destination: intent.destination || selectedDest || "",
+              departDate: intent.departDate || "09/08/2026",
+              cabinType: (intent.cabinType || intent.cabin || 'ECONOMY').toUpperCase(),
+              paxInfos: mappedPax
+            };
+          });
+
+          if (sectors.length === 0) {
+            sectors = [{
+              index: 1,
+              origin: selectedOrigin || "",
+              destination: selectedDest || "",
+              departDate: "09/08/2026",
+              cabinType: "ECONOMY",
+              paxInfos: [{ paxType: "ADT", paxCount: 1, paxFareType: "DEFAULT" }]
+            }];
+          }
+
+          const mappedSubOptions = (matchingOpt?.subTravelOptions || []).map((subOpt: any) => ({
+            subTravelOptionId: subOpt.subTravelOptionId,
+            fareId: opt?.id || subOpt.fareId
+          }));
 
           return {
-            index: intent.index || (index + 1),
-            origin: intent.origin || selectedOrigin || "",
-            destination: intent.destination || selectedDest || "",
-            departDate: intent.departDate || "09/08/2026",
-            cabinType: (intent.cabinType || intent.cabin || 'ECONOMY').toUpperCase(),
-            paxInfos: mappedPax
-          };
-        });
-
-        if (sectors.length === 0) {
-          sectors = [{
-            index: 1,
-            origin: selectedOrigin || "",
-            destination: selectedDest || "",
-            departDate: "09/08/2026",
-            cabinType: "ECONOMY",
-            paxInfos: [{ paxType: "ADT", paxCount: 1, paxFareType: "DEFAULT" }]
-          }];
-        }
-
-        const payload = {
-          sessionId: currentSessionId,
-          searchId,
-          dataId,
-          flightPreviewCriteria: {
-            isMultiFareRequest: false,
-            maxFareCount: 0,
-            sellingCountryCode: "IN",
-            sellingCurrencyCode: "INR"
-          },
-          searchIntents: { sectors },
-          travelOptions: {
-            "J1": {
-              travelOptionId: travelOptId,
-              price: numPrice,
-              subTravelOptions: [{ subTravelOptionId: subOptId, fareId: selectedOption?.id }]
+            sessionId: currentSessionId,
+            searchId,
+            dataId,
+            flightPreviewCriteria: {
+              isMultiFareRequest: false,
+              maxFareCount: 0,
+              sellingCountryCode: "IN",
+              sellingCurrencyCode: "INR"
+            },
+            searchIntents: { sectors },
+            travelOptions: {
+              "J1": {
+                travelOptionId: travelOptId,
+                price: numPrice,
+                subTravelOptions: mappedSubOptions.length > 0 ? mappedSubOptions : [{ subTravelOptionId: subOptId, fareId: opt?.id }]
+              }
             }
-          }
+          };
         };
 
-        const res = await flightService.flightPreview(payload);
-        if (res?.data) {
-          setPreviewData(res.data);
+        const retPayload = await buildPreviewPayload(
+          searchResults,
+          selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight : selectedFlight,
+          selectedOption,
+          sessionId
+        );
+        if (retPayload) {
+          const res = await flightService.flightPreview(retPayload);
+          if (res?.data) {
+            setPreviewData(res.data);
+          }
+        }
+
+        if (selectedFlight?.isCombinedRoundTrip && outboundSearchResults) {
+          const outPayload = await buildPreviewPayload(
+            outboundSearchResults,
+            selectedFlight.outboundFlight,
+            outboundOption,
+            outboundSessionId
+          );
+          if (outPayload) {
+            const outRes = await flightService.flightPreview(outPayload);
+            if (outRes?.data) {
+              setOutboundPreviewData(outRes.data);
+            }
+          }
         }
       } catch (err) {
         console.warn('PassengerDetails flightPreview error:', err);
@@ -153,7 +229,7 @@ export default function PassengerDetails({
     };
 
     fetchPreviewOnMount();
-  }, [searchResults, selectedFlight, selectedOption, sessionId]);
+  }, [searchResults, selectedFlight, selectedOption, sessionId, outboundSearchResults, outboundOption, outboundSessionId]);
   // Extract Live Data from Flight Preview API response (previewData) if available
   const previewDataObj = previewData?.data || previewData || {};
   const previewFares = previewDataObj.fares || {};
@@ -162,6 +238,14 @@ export default function PassengerDetails({
   const previewPenaltiesMap = previewDataObj.penalties || {};
   const previewAirportsMap = previewDataObj.metaData?.airportDetail?.airports || {};
   const previewAirlinesMap = previewDataObj.metaData?.airlineDetail?.airlines || {};
+
+
+  const outboundOriginName = outboundPreviewObj?.metaData?.airportDetail?.airports?.[outboundOriginCode]?.name || previewAirportsMap[outboundOriginCode]?.name || (outboundOriginCode ? `${outboundOriginCode} Airport` : '');
+  const outboundDestName = outboundPreviewObj?.metaData?.airportDetail?.airports?.[outboundDestCode]?.name || previewAirportsMap[outboundDestCode]?.name || (outboundDestCode ? `${outboundDestCode} Airport` : '');
+
+  const returnOriginName = previewAirportsMap[outboundDestCode]?.name || (outboundDestCode ? `${outboundDestCode} Airport` : '');
+  const returnDestName = previewAirportsMap[outboundOriginCode]?.name || (outboundOriginCode ? `${outboundOriginCode} Airport` : '');
+
   const previewConstraints = previewDataObj.constraintAssociations || {};
   const previewFieldAssoc = previewDataObj.fieldAssociations || {};
   const previewFareAssoc = previewDataObj.fareAssociations || {};
@@ -187,9 +271,33 @@ export default function PassengerDetails({
 
   // Live Pricing Breakdown from Preview API
   const livePricing = activePreviewFare.pricing;
-  const liveTotalPrice = livePricing?.totalPrice;
-  const liveBaseFare = livePricing?.totalBaseFare;
-  const liveTax = livePricing?.totalTax;
+  
+
+  const outboundPreviewFares = outboundPreviewObj.fares || {};
+  const outboundActiveFare = 
+    Object.values(outboundPreviewFares).find((f: any) => f.requested === true) ||
+    (outboundOption?.fareId ? outboundPreviewFares[outboundOption.fareId] : null) ||
+    Object.values(outboundPreviewFares)[0] ||
+    {};
+  const outboundPricing = outboundActiveFare.pricing;
+
+  const outboundTotalPrice = outboundPricing?.totalPrice || (outboundOption?.rawPrice ?? selectedFlight?.outboundFlight?.rawPrice ?? 0);
+  const returnTotalPrice = livePricing?.totalPrice || (selectedOption?.rawPrice ?? selectedFlight?.returnFlight?.rawPrice ?? 0);
+  const liveTotalPrice = selectedFlight?.isCombinedRoundTrip 
+    ? (outboundTotalPrice + returnTotalPrice)
+    : (livePricing?.totalPrice ?? selectedOption?.rawPrice ?? selectedFlight?.rawPrice ?? 0);
+
+  const outboundBaseFare = outboundPricing?.totalBaseFare || outboundTotalPrice;
+  const returnBaseFare = livePricing?.totalBaseFare || returnTotalPrice;
+  const liveBaseFare = selectedFlight?.isCombinedRoundTrip
+    ? (outboundBaseFare + returnBaseFare)
+    : (livePricing?.totalBaseFare ?? selectedOption?.rawPrice ?? selectedFlight?.rawPrice ?? 0);
+
+  const outboundTax = outboundPricing?.totalTax || 0;
+  const returnTax = livePricing?.totalTax || 0;
+  const liveTax = selectedFlight?.isCombinedRoundTrip
+    ? (outboundTax + returnTax)
+    : (livePricing?.totalTax ?? 0);
 
   // Live Flights sequence from Preview API (subTravelOptions.sequenceToFlightIdMap)
   const previewSubOptions = previewDataObj.subTravelOptions || {};
@@ -212,16 +320,7 @@ export default function PassengerDetails({
   const liveAirlineName = previewAirlinesMap[liveAirlineCode]?.name || selectedFlight?.airline || '';
   const liveFltNo = firstFlightObj.fltNo ? `${liveAirlineCode}-${firstFlightObj.fltNo}` : (firstFlightObj.id ? firstFlightObj.id.split('-').slice(0, 2).join('-') : (selectedFlight?.code || ''));
 
-  const cleanCode = (val: any) => {
-    if (!val) return '';
-    const str = String(val).trim();
-    const match = str.match(/\(([A-Za-z]{3})\)/);
-    if (match && match[1]) return match[1].toUpperCase();
-    if (str.length === 3) return str.toUpperCase();
-    const wordMatch = str.match(/\b([A-Za-z]{3})\b/);
-    if (wordMatch && wordMatch[1]) return wordMatch[1].toUpperCase();
-    return str.toUpperCase();
-  };
+
 
   const rawOrigin = firstSubOpt.originAirportCode ||
                     firstFlightObj.departureAirport?.code ||
@@ -243,8 +342,8 @@ export default function PassengerDetails({
                   searchResults?.data?.searchIntent?.J1?.destination ||
                   '';
 
-  const originCode = cleanCode(rawOrigin);
-  const destCode = cleanCode(rawDest);
+  const originCode = selectedFlight?.isCombinedRoundTrip ? cleanCode(flightSearchParams?.from) : cleanCode(rawOrigin);
+  const destCode = selectedFlight?.isCombinedRoundTrip ? cleanCode(flightSearchParams?.to) : cleanCode(rawDest);
 
   const liveDepTime = firstFlightObj.departureAirport?.time
     ? new Date(firstFlightObj.departureAirport.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -282,76 +381,124 @@ export default function PassengerDetails({
   const destCity = previewAirportsMap[destCode]?.city || destCode || '';
 
   // Build detailed dynamic list for each segment (for multi-stop/connecting flights)
-  const segmentsList = sortedFlightIds.map((fltId: string, idx: number) => {
-    const fltObj = previewFlights[fltId] || {};
-    const airCode = fltObj.airlineCode || fltObj.operatingAirlineCode || '';
-    const aName = previewAirlinesMap[airCode]?.name || airlineName;
-    const fnNo = fltObj.fltNo ? `${airCode}-${fltObj.fltNo}` : flightCode;
+  const buildSegmentsList = (pDataObj: any, pFlights: any, pAirlinesMap: any, pAirportsMap: any, defaultAirlineName: string, defaultFlightCode: string, defaultDepTime: string, defaultArrTime: string, defaultHeaderDate: string) => {
+    const previewSubOptions = pDataObj.subTravelOptions || {};
+    const firstSubOpt = Object.values(previewSubOptions)[0] as any || {};
+    const seqMap = firstSubOpt.sequenceToFlightIdMap || {};
 
-    const dCode = fltObj.departureAirport?.code || '';
-    const aCode = fltObj.arrivalAirport?.code || '';
-    const dAirport = previewAirportsMap[dCode]?.name || (dCode ? `${dCode} Airport` : '');
-    const aAirport = previewAirportsMap[aCode]?.name || (aCode ? `${aCode} Airport` : '');
-    const dCity = previewAirportsMap[dCode]?.city || dCode;
-    const aCity = previewAirportsMap[aCode]?.city || aCode;
-    const dTerminal = fltObj.departureAirport?.terminal?.name || '';
-    const aTerminal = fltObj.arrivalAirport?.terminal?.name || '';
+    let sortedIds: string[] = Object.keys(seqMap)
+      .sort((a, b) => Number(a) - Number(b))
+      .map(seqKey => seqMap[seqKey])
+      .filter(Boolean);
 
-    const dTimeObj = fltObj.departureAirport?.time ? new Date(fltObj.departureAirport.time) : null;
-    const aTimeObj = fltObj.arrivalAirport?.time ? new Date(fltObj.arrivalAirport.time) : null;
-
-    const dTime = dTimeObj ? dTimeObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : depTime;
-    const aTime = aTimeObj ? aTimeObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : arrTime;
-
-    const dDate = dTimeObj ? dTimeObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : headerDate;
-    const aDate = aTimeObj ? aTimeObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : headerDate;
-
-    let segDuration = '';
-    if (dTimeObj && aTimeObj) {
-      const diffMs = aTimeObj.getTime() - dTimeObj.getTime();
-      const h = Math.floor(diffMs / 3600000);
-      const m = Math.round((diffMs % 3600000) / 60000);
-      segDuration = `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
+    if (sortedIds.length === 0) {
+      sortedIds = Object.keys(pFlights || {});
     }
 
-    let layoverStr = '';
-    let layoverDurationStr = '';
-    const nextFltId = sortedFlightIds[idx + 1];
-    if (nextFltId) {
-      const nextFlt = previewFlights[nextFltId] || {};
-      const nextDepTimeObj = nextFlt.departureAirport?.time ? new Date(nextFlt.departureAirport.time) : null;
-      if (aTimeObj && nextDepTimeObj) {
-        const layoverMs = nextDepTimeObj.getTime() - aTimeObj.getTime();
-        const lh = Math.floor(layoverMs / 3600000);
-        const lm = Math.round((layoverMs % 3600000) / 60000);
-        layoverDurationStr = `${lh > 0 ? `${lh}h ` : ''}${lm}m`;
-        layoverStr = `⏱️ Layover in ${aCity} (${aCode}): ${layoverDurationStr}`;
+    return sortedIds.map((fltId: string, idx: number) => {
+      const fltObj = pFlights[fltId] || {};
+      const airCode = fltObj.airlineCode || fltObj.operatingAirlineCode || '';
+      const aName = pAirlinesMap[airCode]?.name || defaultAirlineName;
+      const fnNo = fltObj.fltNo ? `${airCode}-${fltObj.fltNo}` : defaultFlightCode;
+
+      const dCode = fltObj.departureAirport?.code || '';
+      const aCode = fltObj.arrivalAirport?.code || '';
+      const dAirport = pAirportsMap[dCode]?.name || (dCode ? `${dCode} Airport` : '');
+      const aAirport = pAirportsMap[aCode]?.name || (aCode ? `${aCode} Airport` : '');
+      const dCity = pAirportsMap[dCode]?.city || dCode;
+      const aCity = pAirportsMap[aCode]?.city || aCode;
+      const dTerminal = fltObj.departureAirport?.terminal?.name || '';
+      const aTerminal = fltObj.arrivalAirport?.terminal?.name || '';
+
+      const dTimeObj = fltObj.departureAirport?.time ? new Date(fltObj.departureAirport.time) : null;
+      const aTimeObj = fltObj.arrivalAirport?.time ? new Date(fltObj.arrivalAirport.time) : null;
+
+      const dTime = dTimeObj ? dTimeObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : defaultDepTime;
+      const aTime = aTimeObj ? aTimeObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : defaultArrTime;
+
+      const dDate = dTimeObj ? dTimeObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : defaultHeaderDate;
+      const aDate = aTimeObj ? aTimeObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : defaultHeaderDate;
+
+      let segDuration = '';
+      if (dTimeObj && aTimeObj) {
+        const diffMs = aTimeObj.getTime() - dTimeObj.getTime();
+        const h = Math.floor(diffMs / 3600000);
+        const m = Math.round((diffMs % 3600000) / 60000);
+        segDuration = `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
       }
-    }
 
-    return {
-      index: idx + 1,
-      airlineName: aName,
-      airlineCode: airCode,
-      logoUrl: airCode ? `https://images.kiwi.com/airlines/64/${airCode.trim().toUpperCase()}.png` : '',
-      flightCode: fnNo,
-      depCode: dCode,
-      arrCode: aCode,
-      depCity: dCity,
-      arrCity: aCity,
-      depAirport: dAirport,
-      arrAirport: aAirport,
-      depTerminal: dTerminal,
-      arrTerminal: aTerminal,
-      depTime: dTime,
-      arrTime: aTime,
-      depDate: dDate,
-      arrDate: aDate,
-      duration: segDuration,
-      layoverText: layoverStr,
-      layoverDurationText: layoverDurationStr,
-    };
-  });
+      let layoverStr = '';
+      let layoverDurationStr = '';
+      const nextFltId = sortedIds[idx + 1];
+      if (nextFltId) {
+        const nextFlt = pFlights[nextFltId] || {};
+        const nextDepTimeObj = nextFlt.departureAirport?.time ? new Date(nextFlt.departureAirport.time) : null;
+        if (aTimeObj && nextDepTimeObj) {
+          const layoverMs = nextDepTimeObj.getTime() - aTimeObj.getTime();
+          const lh = Math.floor(layoverMs / 3600000);
+          const lm = Math.round((layoverMs % 3600000) / 60000);
+          layoverDurationStr = `${lh > 0 ? `${lh}h ` : ''}${lm}m`;
+          layoverStr = `⏱️ Layover in ${aCity} (${aCode}): ${layoverDurationStr}`;
+        }
+      }
+
+      return {
+        id: fltId,
+        index: idx + 1,
+        airlineName: aName,
+        airlineCode: airCode,
+        logoUrl: airCode ? `https://images.kiwi.com/airlines/64/${airCode.trim().toUpperCase()}.png` : '',
+        flightCode: fnNo,
+        depCode: dCode,
+        arrCode: aCode,
+        depCity: dCity,
+        arrCity: aCity,
+        depAirport: dAirport,
+        arrAirport: aAirport,
+        depTerminal: dTerminal,
+        arrTerminal: aTerminal,
+        depTime: dTime,
+        arrTime: aTime,
+        depDate: dDate,
+        arrDate: aDate,
+        duration: segDuration,
+        layoverText: layoverStr,
+        layoverDurationText: layoverDurationStr,
+      };
+    });
+  };
+
+  const outboundSegs = selectedFlight?.isCombinedRoundTrip && outboundPreviewObj
+    ? buildSegmentsList(
+        outboundPreviewObj,
+        outboundPreviewObj.flights || {},
+        outboundPreviewObj.metaData?.airlineDetail?.airlines || {},
+        outboundPreviewObj.metaData?.airportDetail?.airports || {},
+        selectedFlight.outboundFlight?.airline,
+        selectedFlight.outboundFlight?.code,
+        selectedFlight.outboundFlight?.depTime,
+        selectedFlight.outboundFlight?.arrTime,
+        outboundDate
+      ).map(seg => ({ ...seg, isReturn: false }))
+    : [];
+
+  const returnSegs = previewDataObj
+    ? buildSegmentsList(
+        previewDataObj,
+        previewFlights || {},
+        previewAirlinesMap || {},
+        previewAirportsMap || {},
+        selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight?.airline : airlineName,
+        selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight?.code : flightCode,
+        selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight?.depTime : depTime,
+        selectedFlight?.isCombinedRoundTrip ? selectedFlight.returnFlight?.arrTime : arrTime,
+        selectedFlight?.isCombinedRoundTrip ? returnDateVal : headerDate
+      ).map(seg => ({ ...seg, isReturn: selectedFlight?.isCombinedRoundTrip ? true : false }))
+    : [];
+
+  const segmentsList = selectedFlight?.isCombinedRoundTrip ? [...outboundSegs, ...returnSegs] : returnSegs;
+
+
 
   // 100% Dynamic Baggage Extraction from Cleartrip API Response
   let dynamicCabinBag = '';
@@ -407,6 +554,9 @@ export default function PassengerDetails({
   
   // Ancillary Modal State
   const [showAncillaries, setShowAncillaries] = useState(false);
+  const [outboundAncillaries, setOutboundAncillaries] = useState<any>(null);
+  const [returnAncillaries, setReturnAncillaries] = useState<any>(null);
+  const [ancillaryStep, setAncillaryStep] = useState<'outbound' | 'return' | null>(null);
 
   // Handle Android hardware back button
   useEffect(() => {
@@ -425,31 +575,13 @@ export default function PassengerDetails({
 
   // Hold Flight State
   const [holdingFlight, setHoldingFlight] = useState(false);
+  const [outboundHoldResult, setOutboundHoldResult] = useState<any>(null);
   const [holdResult, setHoldResult] = useState<any>(null);
   const [showHoldSuccessModal, setShowHoldSuccessModal] = useState(false);
 
-  const handleExecuteHold = async (ancillariesSelected?: any) => {
+  const handleExecuteHold = async (outboundAncillariesSelected?: any, returnAncillariesSelected?: any) => {
     try {
       setHoldingFlight(true);
-
-      const activeSessionId = sessionId || previewDataObj.sessionId || searchResults?.sessionId || searchResults?.data?.sessionId || searchResults?.data?.searchId || searchResults?.searchId || '';
-      const activePreviewId = previewDataObj.flightPreviewId || '';
-      let subOptIdKey = selectedFlight?.id || 'SG-269-BLR-BOM-1785949500';
-      if (previewDataObj.subTravelOptions && typeof previewDataObj.subTravelOptions === 'object') {
-        const keys = Object.keys(previewDataObj.subTravelOptions);
-        if (keys.length > 0) {
-          subOptIdKey = keys[0];
-        }
-      }
-      const travelOptId = subOptIdKey;
-      const fareIdVal = activePreviewFare?.fareId || Object.keys(previewFares)[0] || '';
-
-      const legFlightIds = subOptIdKey.includes('__') ? subOptIdKey.split('__') : [subOptIdKey];
-
-      const flightAncillariesList = legFlightIds.map((fId: string) => ({
-        flightId: fId,
-        ancillaries: ancillariesSelected?.flightAncillaries || []
-      }));
 
       const formattedTitle = title ? title.toUpperCase() : 'MR';
       const formattedGender = (gender || 'MALE').toUpperCase() === 'FEMALE' ? 'FEMALE' : 'MALE';
@@ -465,82 +597,135 @@ export default function PassengerDetails({
         }
       }
 
-      const holdPayload = {
-        sessionId: activeSessionId,
-        searchId: searchResults?.data?.searchId || searchResults?.searchId || '',
-        flightPreviewId: activePreviewId,
-        previewData: previewDataObj,
-        travelOptions: [
-          {
-            travelOptionId: travelOptId,
-            subTravelOptions: [
+      const buildHoldPayload = (sResults: any, flight: any, opt: any, pData: any, sess: string | undefined, ancillariesSelected?: any) => {
+        const activeSessionId = sess || pData.sessionId || sResults?.sessionId || sResults?.data?.sessionId || sResults?.data?.searchId || sResults?.searchId || '';
+        const activePreviewId = pData.flightPreviewId || '';
+        let subOptIdKey = flight?.id || 'SG-269-BLR-BOM-1785949500';
+        if (pData.subTravelOptions && typeof pData.subTravelOptions === 'object') {
+          const keys = Object.keys(pData.subTravelOptions);
+          if (keys.length > 0) {
+            subOptIdKey = keys[0];
+          }
+        }
+        const travelOptId = subOptIdKey;
+        const fareIdVal = opt?.id || opt?.fareId || Object.keys(pData.fares || {})[0] || '';
+
+        const legFlightIds = subOptIdKey.includes('__') ? subOptIdKey.split('__') : [subOptIdKey];
+
+        const flightAncillariesList = legFlightIds.map((fId: string) => ({
+          flightId: fId,
+          ancillaries: ancillariesSelected?.flightAncillaries || []
+        }));
+
+        return {
+          sessionId: activeSessionId,
+          searchId: sResults?.data?.searchId || sResults?.searchId || '',
+          flightPreviewId: activePreviewId,
+          previewData: pData,
+          travelOptions: [
+            {
+              travelOptionId: travelOptId,
+              subTravelOptions: [
+                {
+                  subTravelType: "FLIGHT",
+                  subTravelOptionId: subOptIdKey,
+                  fareId: fareIdVal
+                }
+              ]
+            }
+          ],
+          passengerInformation: {
+            passengers: [
               {
-                subTravelType: "FLIGHT",
-                subTravelOptionId: subOptIdKey,
-                fareId: fareIdVal
+                firstName: firstName.trim(),
+                lastName: lastName.trim(),
+                middleName: "",
+                gender: formattedGender,
+                email: email.trim(),
+                travellerType: "ADT",
+                dob: formattedDob,
+                nationalityCode: "IN",
+                address: {
+                  mobileNumber: mobile.trim(),
+                  countryCode: "91"
+                },
+                title: formattedTitle,
+                subTravelOptionAncillaries: [
+                  {
+                    subTravelOptionId: subOptIdKey,
+                    subTravelType: "FLIGHT",
+                    flightAncillaries: flightAncillariesList,
+                    ancillaries: ancillariesSelected?.ancillaries || []
+                  }
+                ],
+                documents: []
               }
             ]
-          }
-        ],
-        passengerInformation: {
-          passengers: [
-            {
-              firstName: firstName.trim(),
-              lastName: lastName.trim(),
-              middleName: "",
-              gender: formattedGender,
-              email: email.trim(),
-              travellerType: "ADT",
-              dob: formattedDob,
-              nationalityCode: "IN",
-              address: {
-                mobileNumber: mobile.trim(),
-                countryCode: "91"
-              },
-              title: formattedTitle,
-              subTravelOptionAncillaries: [
-                {
-                  subTravelOptionId: subOptIdKey,
-                  subTravelType: "FLIGHT",
-                  flightAncillaries: flightAncillariesList,
-                  ancillaries: ancillariesSelected?.ancillaries || []
-                }
-              ],
-              documents: []
-            }
-          ]
-        },
-        customerInformation: {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          title: formattedTitle,
-          emailId: email.trim(),
-          address: {
-            countryCode: "91"
           },
-          phoneNumberDetails: {
-            phoneNumber: mobile.trim(),
-            countryCode: "91"
+          customerInformation: {
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            title: formattedTitle,
+            emailId: email.trim(),
+            address: {
+              countryCode: "91"
+            },
+            phoneNumberDetails: {
+              phoneNumber: mobile.trim(),
+              countryCode: "91"
+            }
+          },
+          metaInformation: {
+            currency: "INR",
+            domain: "IN",
+            sectorType: "DOMESTIC",
+            itineraryId: activeSessionId || "CURRENT_SESSION_ID"
           }
-        },
-        metaInformation: {
-          currency: "INR",
-          domain: "IN",
-          sectorType: "DOMESTIC",
-          itineraryId: activeSessionId || "CURRENT_SESSION_ID"
-        }
+        };
       };
 
-      console.log('[PassengerDetails] Executing Hold API call...');
+      if (selectedFlight?.isCombinedRoundTrip) {
+        // Hold Outbound
+        console.log('[PassengerDetails] Holding Outbound flight...');
+        const outboundPayload = buildHoldPayload(
+          outboundSearchResults,
+          selectedFlight.outboundFlight,
+          outboundOption,
+          outboundPreviewObj,
+          outboundSessionId,
+          outboundAncillariesSelected
+        );
+        const outRes = await flightService.holdFlight(outboundPayload);
+        
+        // Hold Return
+        console.log('[PassengerDetails] Holding Return flight...');
+        const returnPayload = buildHoldPayload(
+          searchResults,
+          selectedFlight.returnFlight,
+          selectedOption,
+          previewDataObj,
+          sessionId,
+          returnAncillariesSelected
+        );
+        const retRes = await flightService.holdFlight(returnPayload);
 
-      const res = await flightService.holdFlight(holdPayload);
-      console.log('[PassengerDetails] Hold API Response:', res);
-
-      if (res && (res.success || res.data)) {
-        setHoldResult(res.data || res);
-        setShowHoldSuccessModal(true);
+        if (outRes && (outRes.success || outRes.data) && retRes && (retRes.success || retRes.data)) {
+          setOutboundHoldResult(outRes.data || outRes);
+          setHoldResult(retRes.data || retRes);
+          setShowHoldSuccessModal(true);
+        } else {
+          Alert.alert('Hold Booking Status', 'One or both flight holds failed.');
+        }
       } else {
-        Alert.alert('Hold Booking Status', res?.message || 'Hold completed successfully!');
+        // One way hold
+        const holdPayload = buildHoldPayload(searchResults, selectedFlight, selectedOption, previewDataObj, sessionId, outboundAncillariesSelected || returnAncillariesSelected);
+        const res = await flightService.holdFlight(holdPayload);
+        if (res && (res.success || res.data)) {
+          setHoldResult(res.data || res);
+          setShowHoldSuccessModal(true);
+        } else {
+          Alert.alert('Hold Booking Status', res?.message || 'Hold completed successfully!');
+        }
       }
     } catch (err: any) {
       console.error('[PassengerDetails] executeHold error:', err);
@@ -612,13 +797,10 @@ export default function PassengerDetails({
       }
 
       // 3. Commit Cleartrip Book API call (Passing Razorpay verification IDs & signature)
-      const bookPayload = {
-        sessionId: activeSessionId,
-        travelIds: [travelIdToBook],
+      const baseBookPayload = {
         razorpayOrderId: razorpayData?.razorpay_order_id || razorpayOrderData?.orderId || '',
         razorpayPaymentId: razorpayData?.razorpay_payment_id || '',
         razorpaySignature: razorpayData?.razorpay_signature || '',
-        flight: selectedFlight,
         passenger: {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
@@ -635,17 +817,54 @@ export default function PassengerDetails({
         }
       };
 
-      console.log('[PassengerDetails] Step 3: Executing Cleartrip Book API with payload:', JSON.stringify(bookPayload, null, 2));
+      if (selectedFlight?.isCombinedRoundTrip) {
+        // Book Outbound
+        const outboundTravelId = outboundHoldResult?.heldState?.travelIds?.[0] || outboundHoldResult?.travelIds?.[0] || outboundHoldResult?.travelId;
+        const outboundBookPayload = {
+          ...baseBookPayload,
+          sessionId: outboundSessionId || outboundHoldResult?.sessionId || '',
+          travelIds: [outboundTravelId],
+          flight: selectedFlight.outboundFlight
+        };
+        console.log('[PassengerDetails] Step 3a: Booking Outbound flight...');
+        const outRes = await flightService.bookFlight(outboundBookPayload);
 
-      const res = await flightService.bookFlight(bookPayload);
-      console.log('[PassengerDetails] Book API Response:', res);
+        // Book Return
+        const returnBookPayload = {
+          ...baseBookPayload,
+          sessionId: sessionId || holdResult?.sessionId || '',
+          travelIds: [travelIdToBook],
+          flight: selectedFlight.returnFlight
+        };
+        console.log('[PassengerDetails] Step 3b: Booking Return flight...');
+        const retRes = await flightService.bookFlight(returnBookPayload);
 
-      if (res && (res.success || res.data)) {
-        setShowHoldSuccessModal(false);
-        setBookResult(res.data || res);
-        setShowBookSuccessModal(true);
+        if (retRes && (retRes.success || retRes.data)) {
+          setShowHoldSuccessModal(false);
+          setBookResult(retRes.data || retRes);
+          setShowBookSuccessModal(true);
+        } else {
+          Alert.alert('Flight Booking Status', 'One or both flight ticket issuances failed.');
+        }
       } else {
-        Alert.alert('Flight Booking Status', res?.message || 'Booking issued successfully!');
+        const bookPayload = {
+          ...baseBookPayload,
+          sessionId: activeSessionId,
+          travelIds: [travelIdToBook],
+          flight: selectedFlight
+        };
+        console.log('[PassengerDetails] Step 3: Executing Cleartrip Book API with payload:', JSON.stringify(bookPayload, null, 2));
+
+        const res = await flightService.bookFlight(bookPayload);
+        console.log('[PassengerDetails] Book API Response:', res);
+
+        if (res && (res.success || res.data)) {
+          setShowHoldSuccessModal(false);
+          setBookResult(res.data || res);
+          setShowBookSuccessModal(true);
+        } else {
+          Alert.alert('Flight Booking Status', res?.message || 'Booking issued successfully!');
+        }
       }
     } catch (err: any) {
       console.error('[PassengerDetails] executeBook error:', err);
@@ -665,9 +884,32 @@ export default function PassengerDetails({
       Alert.alert('Required Information', 'Please enter valid Email Address and Mobile Number.');
       return;
     }
-    // Show Ancillaries before proceeding to hold / payment
-    setShowAncillaries(true);
+    
+    // Start sequential seat selection
+    if (selectedFlight?.isCombinedRoundTrip) {
+      setAncillaryStep('outbound');
+      setShowAncillaries(true);
+    } else {
+      setAncillaryStep('return');
+      setShowAncillaries(true);
+    }
   };
+
+
+  const rawPax = Object.values(searchResults?.data?.searchIntent || searchResults?.searchIntent || {})[0] as any || {};
+  const paxList = rawPax.paxInfos || rawPax.paxCriteria || rawPax.paxDetails || [];
+  
+  let passengerCount = 1;
+  if (paxList.length > 0) {
+    passengerCount = paxList.reduce((sum: number, p: any) => sum + (p.paxCount || p.count || 0), 0);
+  } else if (flightSearchParams?.passengers) {
+    const p = flightSearchParams.passengers;
+    passengerCount = (p.adults || 0) + (p.children || 0) + (p.infants || 0);
+  }
+
+  const subtitleText = selectedFlight?.isCombinedRoundTrip
+    ? `Outbound: ${outboundDate} • Return: ${returnDateVal} • 👤 ${passengerCount} Traveler(s)`
+    : `Depart: ${headerDate} • 👤 ${passengerCount} Traveler(s)`;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -682,7 +924,7 @@ export default function PassengerDetails({
 
           <View style={styles.routeHeaderInfo}>
             <Text style={styles.headerRouteText}>{originCode} → {destCode}</Text>
-            <Text style={styles.headerSubtitle}>Step 2 of 4 • Passenger Details</Text>
+            <Text style={styles.headerSubtitle}>{subtitleText}</Text>
           </View>
 
           {/* Stepper Progress Badges */}
@@ -726,101 +968,192 @@ export default function PassengerDetails({
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
         {/* Flight Details Summary Card */}
-        <View style={styles.card}>
-          <View style={styles.flightCardHeader}>
-            <Image
-              source={{ uri: `https://images.kiwi.com/airlines/64/${(liveAirlineCode || '6E').trim().toUpperCase()}.png` }}
-              style={{ width: 32, height: 32, borderRadius: 16, marginRight: 10 }}
-              resizeMode="contain"
-            />
-            <View style={styles.flightNumberGroup}>
-              <Text style={styles.airlineName}>{airlineName} • {flightCode}</Text>
-              <View style={styles.nonstopTag}>
-                <Text style={styles.nonstopTagText}>{stopsText}</Text>
-              </View>
-            </View>
-            <View style={[styles.priceVerifiedBadge, loadingPreview && { backgroundColor: '#f59e0b' }]}>
-              {loadingPreview ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 4 }} />
-                  <Text style={styles.priceVerifiedText}>VERIFYING...</Text>
+        {selectedFlight?.isCombinedRoundTrip ? (
+          <View style={{ marginBottom: 12 }}>
+            {/* Outbound Card */}
+            <View style={[styles.card, { marginBottom: 12 }]}>
+              <View style={styles.flightCardHeader}>
+                <Image
+                  source={{ uri: `https://images.kiwi.com/airlines/64/${(selectedFlight.outboundFlight?.logoChar || '6E').trim().toUpperCase()}.png` }}
+                  style={{ width: 32, height: 32, borderRadius: 16, marginRight: 10 }}
+                  resizeMode="contain"
+                />
+                <View style={styles.flightNumberGroup}>
+                  <Text style={styles.airlineName}>{selectedFlight.outboundFlight?.airline} • {selectedFlight.outboundFlight?.code}</Text>
+                  <View style={styles.nonstopTag}>
+                    <Text style={styles.nonstopTagText}>[Outbound] {selectedFlight.outboundFlight?.stops}</Text>
+                  </View>
                 </View>
-              ) : (
-                <Text style={styles.priceVerifiedText}>✓ PRICE VERIFIED</Text>
-              )}
+              </View>
+              <View style={styles.routeDetailsRow}>
+                <View style={styles.originCol}>
+                  <Text style={styles.cityCodeText}>{cleanCode(flightSearchParams?.from)}</Text>
+                  <Text style={styles.airportNameText} numberOfLines={2}>{outboundOriginName}</Text>
+                  <Text style={styles.timeText}>{selectedFlight.outboundFlight?.depTime}</Text>
+                  <Text style={styles.dateText}>{outboundDate}</Text>
+                </View>
+                <View style={styles.durationCol}>
+                  <View style={styles.durationBadge}>
+                    <Text style={styles.clockIcon}>🕒</Text>
+                    <Text style={styles.durationText}>{selectedFlight.outboundFlight?.duration}</Text>
+                  </View>
+                </View>
+                <View style={styles.destCol}>
+                  <Text style={[styles.cityCodeText, { textAlign: 'right' }]}>{cleanCode(flightSearchParams?.to)}</Text>
+                  <Text style={[styles.airportNameText, { textAlign: 'right' }]} numberOfLines={2}>{outboundDestName}</Text>
+                  <Text style={[styles.timeText, { textAlign: 'right' }]}>{selectedFlight.outboundFlight?.arrTime}</Text>
+                  <Text style={[styles.dateText, { textAlign: 'right' }]}>{outboundDate}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Return Card */}
+            <View style={styles.card}>
+              <View style={styles.flightCardHeader}>
+                <Image
+                  source={{ uri: `https://images.kiwi.com/airlines/64/${(selectedFlight.returnFlight?.logoChar || '6E').trim().toUpperCase()}.png` }}
+                  style={{ width: 32, height: 32, borderRadius: 16, marginRight: 10 }}
+                  resizeMode="contain"
+                />
+                <View style={styles.flightNumberGroup}>
+                  <Text style={styles.airlineName}>{selectedFlight.returnFlight?.airline} • {selectedFlight.returnFlight?.code}</Text>
+                  <View style={styles.nonstopTag}>
+                    <Text style={styles.nonstopTagText}>[Return] {selectedFlight.returnFlight?.stops}</Text>
+                  </View>
+                </View>
+              </View>
+              <View style={styles.routeDetailsRow}>
+                <View style={styles.originCol}>
+                  <Text style={styles.cityCodeText}>{cleanCode(flightSearchParams?.to)}</Text>
+                  <Text style={styles.airportNameText} numberOfLines={2}>{returnOriginName}</Text>
+                  <Text style={styles.timeText}>{selectedFlight.returnFlight?.depTime}</Text>
+                  <Text style={styles.dateText}>{returnDateVal}</Text>
+                </View>
+                <View style={styles.durationCol}>
+                  <View style={styles.durationBadge}>
+                    <Text style={styles.clockIcon}>🕒</Text>
+                    <Text style={styles.durationText}>{selectedFlight.returnFlight?.duration}</Text>
+                  </View>
+                </View>
+                <View style={styles.destCol}>
+                  <Text style={[styles.cityCodeText, { textAlign: 'right' }]}>{cleanCode(flightSearchParams?.from)}</Text>
+                  <Text style={[styles.airportNameText, { textAlign: 'right' }]} numberOfLines={2}>{returnDestName}</Text>
+                  <Text style={[styles.timeText, { textAlign: 'right' }]}>{selectedFlight.returnFlight?.arrTime}</Text>
+                  <Text style={[styles.dateText, { textAlign: 'right' }]}>{returnDateVal}</Text>
+                </View>
+              </View>
+              {/* View Detailed Information Toggle Button for Round Trip */}
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 12, marginTop: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' }}
+                onPress={() => setShowDetailedInfo(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#2563eb' }}>
+                  View detailed information
+                </Text>
+                <Text style={{ fontSize: 13, color: '#2563eb', marginLeft: 6, fontWeight: 'bold' }}>
+                  ∨
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
+        ) : (
+          <View style={styles.card}>
+            <View style={styles.flightCardHeader}>
+              <Image
+                source={{ uri: `https://images.kiwi.com/airlines/64/${(liveAirlineCode || '6E').trim().toUpperCase()}.png` }}
+                style={{ width: 32, height: 32, borderRadius: 16, marginRight: 10 }}
+                resizeMode="contain"
+              />
+              <View style={styles.flightNumberGroup}>
+                <Text style={styles.airlineName}>{airlineName} • {flightCode}</Text>
+                <View style={styles.nonstopTag}>
+                  <Text style={styles.nonstopTagText}>{stopsText}</Text>
+                </View>
+              </View>
+              <View style={[styles.priceVerifiedBadge, loadingPreview && { backgroundColor: '#f59e0b' }]}>
+                {loadingPreview ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 4 }} />
+                    <Text style={styles.priceVerifiedText}>VERIFYING...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.priceVerifiedText}>✓ PRICE VERIFIED</Text>
+                )}
+              </View>
+            </View>
 
-          {/* Clean High-Level Summary Route Row */}
-          <View style={styles.routeDetailsRow}>
-            {/* Origin */}
-            <View style={styles.originCol}>
-              <Text style={styles.cityCodeText}>{originCode}</Text>
-              <Text style={styles.airportNameText} numberOfLines={2}>
-                {originAirportName}
+            {/* Clean High-Level Summary Route Row */}
+            <View style={styles.routeDetailsRow}>
+              {/* Origin */}
+              <View style={styles.originCol}>
+                <Text style={styles.cityCodeText}>{originCode}</Text>
+                <Text style={styles.airportNameText} numberOfLines={2}>
+                  {originAirportName}
+                </Text>
+                <Text style={styles.timeText}>{depTime}</Text>
+                <Text style={styles.dateText}>{headerDate}</Text>
+              </View>
+
+              {/* Flight Path Graphic */}
+              <View style={styles.durationCol}>
+                <View style={styles.durationBadge}>
+                  <Text style={styles.clockIcon}>🕒</Text>
+                  <Text style={styles.durationText}>{duration}</Text>
+                </View>
+                <View style={styles.pathLineContainer}>
+                  <View style={styles.pathDot} />
+                  <View style={styles.pathLine} />
+                  <View style={styles.pathDot} />
+                </View>
+                <Text style={styles.pathTagText}>{stopsText}</Text>
+              </View>
+
+              {/* Destination */}
+              <View style={styles.destCol}>
+                <Text style={[styles.cityCodeText, { textAlign: 'right' }]}>{destCode}</Text>
+                <Text style={[styles.airportNameText, { textAlign: 'right' }]} numberOfLines={2}>
+                  {destAirportName}
+                </Text>
+                <Text style={[styles.timeText, { textAlign: 'right' }]}>{arrTime}</Text>
+                <Text style={[styles.dateText, { textAlign: 'right' }]}>{arrivalHeaderDate}</Text>
+              </View>
+            </View>
+
+            {/* Baggage Info Grid */}
+            <View style={styles.baggageRow}>
+              <View style={styles.baggageItem}>
+                <Text style={styles.baggageIcon}>🧳</Text>
+                <View>
+                  <Text style={styles.baggageTitle}>Cabin Baggage</Text>
+                  <Text style={styles.baggageValue}>{cabinBag}</Text>
+                </View>
+              </View>
+              <View style={styles.baggageDivider} />
+              <View style={styles.baggageItem}>
+                <Text style={styles.baggageIcon}>🧳</Text>
+                <View>
+                  <Text style={styles.baggageTitle}>Check-in Baggage</Text>
+                  <Text style={styles.baggageValue}>{checkInBag}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* View Detailed Information Toggle Button */}
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 12, marginTop: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' }}
+              onPress={() => setShowDetailedInfo(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#2563eb' }}>
+                View detailed information
               </Text>
-              <Text style={styles.timeText}>{depTime}</Text>
-              <Text style={styles.dateText}>{headerDate}</Text>
-            </View>
-
-            {/* Flight Path Graphic */}
-            <View style={styles.durationCol}>
-              <View style={styles.durationBadge}>
-                <Text style={styles.clockIcon}>🕒</Text>
-                <Text style={styles.durationText}>{duration}</Text>
-              </View>
-              <View style={styles.pathLineContainer}>
-                <View style={styles.pathDot} />
-                <View style={styles.pathLine} />
-                <View style={styles.pathDot} />
-              </View>
-              <Text style={styles.pathTagText}>{stopsText}</Text>
-            </View>
-
-            {/* Destination */}
-            <View style={styles.destCol}>
-              <Text style={[styles.cityCodeText, { textAlign: 'right' }]}>{destCode}</Text>
-              <Text style={[styles.airportNameText, { textAlign: 'right' }]} numberOfLines={2}>
-                {destAirportName}
+              <Text style={{ fontSize: 13, color: '#2563eb', marginLeft: 6, fontWeight: 'bold' }}>
+                ∨
               </Text>
-              <Text style={[styles.timeText, { textAlign: 'right' }]}>{arrTime}</Text>
-              <Text style={[styles.dateText, { textAlign: 'right' }]}>{arrivalHeaderDate}</Text>
-            </View>
+            </TouchableOpacity>
           </View>
-
-          {/* Baggage Info Grid */}
-          <View style={styles.baggageRow}>
-            <View style={styles.baggageItem}>
-              <Text style={styles.baggageIcon}>🧳</Text>
-              <View>
-                <Text style={styles.baggageTitle}>Cabin Baggage</Text>
-                <Text style={styles.baggageValue}>{cabinBag}</Text>
-              </View>
-            </View>
-            <View style={styles.baggageDivider} />
-            <View style={styles.baggageItem}>
-              <Text style={styles.baggageIcon}>🧳</Text>
-              <View>
-                <Text style={styles.baggageTitle}>Check-in Baggage</Text>
-                <Text style={styles.baggageValue}>{checkInBag}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* View Detailed Information Toggle Button */}
-          <TouchableOpacity
-            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingTop: 12, marginTop: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' }}
-            onPress={() => setShowDetailedInfo(true)}
-            activeOpacity={0.7}
-          >
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#2563eb' }}>
-              View detailed information
-            </Text>
-            <Text style={{ fontSize: 13, color: '#2563eb', marginLeft: 6, fontWeight: 'bold' }}>
-              ∨
-            </Text>
-          </TouchableOpacity>
-        </View>
+        )}
 
         {/* Dedicated Animated Flight Details Bottom Sheet Modal */}
         <FlightDetailsModal
@@ -838,6 +1171,7 @@ export default function PassengerDetails({
           stopsText={stopsText}
           logoBg={logoBg}
           logoChar={logoChar}
+          isRoundTrip={selectedFlight?.isCombinedRoundTrip}
         />
 
         {/* Fare Breakdown Card */}
@@ -1160,18 +1494,45 @@ export default function PassengerDetails({
       {/* Ancillary Selection Modal */}
       <AncillarySelection 
         visible={showAncillaries}
-        onClose={() => setShowAncillaries(false)}
-        onConfirm={(selected) => {
+        onClose={() => {
           setShowAncillaries(false);
-          const totalAddonSum = selected?.totalAddonPrice || 0;
-          setAddonPrice(totalAddonSum);
-          handleExecuteHold(selected);
+          setAncillaryStep(null);
         }}
-        flightPreviewId={previewDataObj.flightPreviewId}
-        subTravelOptions={previewDataObj.subTravelOptions}
-        searchIntent={previewDataObj.searchIntent || 'BLR_BOM'}
-        sessionId={sessionId || previewDataObj.sessionId || searchResults?.sessionId || searchResults?.data?.sessionId || searchResults?.data?.searchId || searchResults?.searchId || ''}
-        fareId={activePreviewFare?.fareId || Object.keys(previewFares).find(k => previewFares[k] === activePreviewFare) || Object.keys(previewFares)[0] || ''}
+        onConfirm={(selected) => {
+          if (ancillaryStep === 'outbound') {
+            setOutboundAncillaries(selected);
+            // Close modal briefly to reset content, then open Return leg selection
+            setShowAncillaries(false);
+            setTimeout(() => {
+              setAncillaryStep('return');
+              setShowAncillaries(true);
+            }, 300);
+          } else {
+            setReturnAncillaries(selected);
+            setShowAncillaries(false);
+            setAncillaryStep(null);
+            
+            const outSum = outboundAncillaries?.totalAddonPrice || 0;
+            const retSum = selected?.totalAddonPrice || 0;
+            setAddonPrice(outSum + retSum);
+
+            // Execute concurrent holds sequentially
+            handleExecuteHold(outboundAncillaries, selected);
+          }
+        }}
+        flightPreviewId={ancillaryStep === 'outbound' ? outboundPreviewObj?.flightPreviewId : previewDataObj?.flightPreviewId}
+        subTravelOptions={ancillaryStep === 'outbound' ? outboundPreviewObj?.subTravelOptions : previewDataObj?.subTravelOptions}
+        searchIntent={ancillaryStep === 'outbound' ? (outboundPreviewObj?.searchIntent || 'BLR_BOM') : (previewDataObj?.searchIntent || 'BOM_BLR')}
+        sessionId={
+          ancillaryStep === 'outbound'
+            ? (outboundSessionId || outboundPreviewObj?.sessionId || outboundSearchResults?.sessionId || '')
+            : (sessionId || previewDataObj?.sessionId || searchResults?.sessionId || '')
+        }
+        fareId={
+          ancillaryStep === 'outbound'
+            ? (outboundActiveFare?.fareId || Object.keys(outboundPreviewFares || {})[0] || '')
+            : (activePreviewFare?.fareId || Object.keys(previewFares || {})[0] || '')
+        }
       />
 
       {/* Hold Success Modal */}
