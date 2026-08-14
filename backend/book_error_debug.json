@@ -1,57 +1,312 @@
 {
-  "timestamp": "2026-08-11T17:52:29.120Z",
-  "requestBody": {
-    "sessionId": "65273301_61339985-670f-44a5-8a73-fd927c3449ea-260811185012",
+  "timestamp": "2026-08-14T18:25:06.434Z",
+  "payloadSentToCleartrip": {
     "travelIds": [
-      "6E-238-PNQ-MAA-1786468500__6E-7167-MAA-IXM-1786502700"
+      "AMADEUS__OWBOMNAG200AI2857AI9594142796dee25d436096c191520ba79aaeexp1786722820814__DC_dc1__SC"
+    ]
+  },
+  "sessionIdUsed": "65273301_fa277a8f-ba9c-4c5d-82ec-d6aaa84d508f-260814192110",
+  "requestBody": {
+    "razorpayOrderId": "order_TPfoZjxfUia3Ja",
+    "razorpayPaymentId": "pay_TPfpQ8Jxi7NKBz",
+    "razorpaySignature": "5a4aac0b7e3c7e294365ccd4dcf3f80d883ffe4f26b964b464a63f7a7f56cb93",
+    "passengers": [
+      {
+        "firstName": "Ajay",
+        "lastName": "Dhayatidak",
+        "gender": "MALE",
+        "dob": "2001-08-07",
+        "email": "rahul@example.com",
+        "phone": "9876543210",
+        "title": "MR",
+        "type": "ADT"
+      },
+      {
+        "firstName": "Shiva",
+        "lastName": "Dhayatidak",
+        "gender": "MALE",
+        "dob": "2002-08-07",
+        "email": "rahul@example.com",
+        "phone": "9876543210",
+        "title": "MR",
+        "type": "ADT"
+      }
     ],
+    "contact": {
+      "email": "rahul@example.com",
+      "phone": "9876543210",
+      "countryCode": "91"
+    },
+    "sessionId": "65273301_fa277a8f-ba9c-4c5d-82ec-d6aaa84d508f-260814192110",
+    "travelIds": [
+      "AMADEUS__OWBOMNAG200AI2857AI9594142796dee25d436096c191520ba79aaeexp1786722820814__DC_dc1__SC"
+    ],
+    "holdData": {
+      "travelOptionList": [
+        {
+          "travelOptionId": "AI-2857-BOM-BLR-1786730400__AI-9594-BLR-NAG-1786762500",
+          "holdStatus": "SUCCESS",
+          "indicators": [
+            {
+              "type": "NO_CHANGE"
+            }
+          ],
+          "subTravelOptions": [
+            {
+              "subTravelOptionId": "AI-2857-BOM-BLR-1786730400__AI-9594-BLR-NAG-1786762500",
+              "subTravelType": "FLIGHT",
+              "travelId": "AMADEUS__OWBOMNAG200AI2857AI9594142796dee25d436096c191520ba79aaeexp1786722820814__DC_dc1__SC",
+              "fareId": "FARE_FAMILY__14/08/2026__AI^AI__AI^IX__BOM_NAG__true__RETAIL__E__DOM__OW__UNKNOWN__S043__ECO CLASSIC,ECO CLASSIC__AVN+Z52oqIOrrlCjLjMaVbeekL72OTKzjwq8eR8Dbm2cfbidXkK8J9Lf0faJns6yuAl1gYWu+WnGYtXoIdEoSHoyYXz2f83tjury7rT1dMuSRSDIPVNXYjpoxLMl+oT6KPjmEfbtuCRlt/t6k/8dV4PKL349ClqizIqVWB4gGf11cTuEzY/Kw+DWThEOJYZ5m1wmDLemN9jRfnPAJf/g8kTd4L7YDUP+7siemNUynZLelvNa+PlXOul9YvVK9ePdI7s/LL+3LEYs21xQrU9JY/tkvSGefmShR0cpIPc=~~V3",
+              "fare": {
+                "fareId": "FARE_FAMILY__14/08/2026__AI^AI__AI^IX__BOM_NAG__true__RETAIL__E__DOM__OW__UNKNOWN__S043__ECO CLASSIC,ECO CLASSIC__AVN+Z52oqIOrrlCjLjMaVbeekL72OTKzjwq8eR8Dbm2cfbidXkK8J9Lf0faJns6yuAl1gYWu+WnGYtXoIdEoSHoyYXz2f83tjury7rT1dMuSRSDIPVNXYjpoxLMl+oT6KPjmEfbtuCRlt/t6k/8dV4PKL349ClqizIqVWB4gGf11cTuEzY/Kw+DWThEOJYZ5m1wmDLemN9jRfnPAJf/g8kTd4L7YDUP+7siemNUynZLelvNa+PlXOul9YvVK9ePdI7s/LL+3LEYs21xQrU9JY/tkvSGefmShR0cpIPc=~~V3",
+                "fareGroup": "FARE_FAMILY",
+                "fareCategory": "RETAIL",
+                "pricing": {
+                  "totalPrice": 29152,
+                  "totalTax": 4508,
+                  "totalBaseFare": 24644,
+                  "totalPricePerAdult": 29152,
+                  "fee": 0,
+                  "discount": 0,
+                  "otherCharges": 0,
+                  "convenienceFee": 0
+                },
+                "subTravelOptionFare": [
+                  {
+                    "subTravelOptionKey": "BOM_NAG",
+                    "paxFare": [
+                      {
+                        "paxType": "ADT",
+                        "paxCount": 2,
+                        "priceComponents": [
+                          {
+                            "category": "TAX",
+                            "code": "YR",
+                            "amount": 340,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "YQ",
+                            "amount": 798,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "AIRLINE-MSC",
+                            "amount": 443,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "K3",
+                            "amount": 673,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "BF",
+                            "code": "",
+                            "amount": 12322,
+                            "currency": "INR"
+                          }
+                        ],
+                        "otherCharges": 0,
+                        "convenienceFee": 0
+                      }
+                    ],
+                    "flightFare": [
+                      {
+                        "flightId": "AI-9594-BLR-NAG-1786762500",
+                        "paxFares": [
+                          {
+                            "paxType": "ADT",
+                            "paxCount": 2,
+                            "priceComponents": [
+                              {
+                                "category": "TAX",
+                                "code": "YR",
+                                "amount": 170,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "TAX",
+                                "code": "YQ",
+                                "amount": 399,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "TAX",
+                                "code": "AIRLINE-MSC",
+                                "amount": 221,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "TAX",
+                                "code": "K3",
+                                "amount": 336,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "BF",
+                                "code": "",
+                                "amount": 6161,
+                                "currency": "INR"
+                              }
+                            ],
+                            "otherCharges": 0,
+                            "convenienceFee": 0
+                          }
+                        ],
+                        "identifiers": {
+                          "cabinType": "ECONOMY",
+                          "fareClass": "RP",
+                          "fareBasisCode": "SK1YWYII",
+                          "rbd": "S",
+                          "availableSeatCount": 4,
+                          "brandName": "ECO CLASSIC",
+                          "brand": "ECO CLASSIC"
+                        }
+                      },
+                      {
+                        "flightId": "AI-2857-BOM-BLR-1786730400",
+                        "paxFares": [
+                          {
+                            "paxType": "ADT",
+                            "paxCount": 2,
+                            "priceComponents": [
+                              {
+                                "category": "TAX",
+                                "code": "YR",
+                                "amount": 170,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "TAX",
+                                "code": "YQ",
+                                "amount": 399,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "TAX",
+                                "code": "AIRLINE-MSC",
+                                "amount": 222,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "TAX",
+                                "code": "K3",
+                                "amount": 337,
+                                "currency": "INR"
+                              },
+                              {
+                                "category": "BF",
+                                "code": "",
+                                "amount": 6161,
+                                "currency": "INR"
+                              }
+                            ],
+                            "otherCharges": 0,
+                            "convenienceFee": 0
+                          }
+                        ],
+                        "identifiers": {
+                          "cabinType": "ECONOMY",
+                          "fareClass": "RP",
+                          "fareBasisCode": "VU1YWSII",
+                          "rbd": "V",
+                          "availableSeatCount": 9,
+                          "brandName": "ECO CLASSIC",
+                          "brand": "ECO CLASSIC"
+                        }
+                      }
+                    ],
+                    "revenue": 0
+                  }
+                ],
+                "data": {
+                  "AGENT_PCC": "BOM3C25JD",
+                  "CTC": "29152.0",
+                  "SUPPLIER": "AMADEUS",
+                  "VALIDATING_CARRIER": "AI"
+                },
+                "transitVisaRequired": false,
+                "refundable": false,
+                "checkInBaggageAllowed": true
+              },
+              "passengerAncillaries": [
+                {
+                  "paxIndex": 1,
+                  "ancillaryHoldStatus": [],
+                  "flightAncillaries": []
+                },
+                {
+                  "paxIndex": 2,
+                  "ancillaryHoldStatus": [],
+                  "flightAncillaries": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "tripId": "Q260814971490",
+      "sessionId": "65273301_fa277a8f-ba9c-4c5d-82ec-d6aaa84d508f-260814192110"
+    },
     "flight": {
-      "id": "6E-238-PNQ-MAA-1786468500__6E-7167-MAA-IXM-1786502700",
-      "airline": "IndiGo",
-      "code": "6E-238",
-      "departureCode": "PNQ",
-      "arrivalCode": "IXM",
-      "originCode": "PNQ",
-      "destCode": "IXM",
-      "from": "PNQ",
-      "to": "IXM",
-      "depTime": "22:45",
-      "arrTime": "09:40",
-      "duration": "10h 55m",
+      "id": "AI-2857-BOM-BLR-1786730400__AI-9594-BLR-NAG-1786762500",
+      "airline": "Air India",
+      "code": "AI-2857",
+      "depTime": "19:00",
+      "arrTime": "05:45",
+      "duration": "10h 45m",
       "stops": "1 stop",
-      "price": "₹10,061",
-      "logoBg": "#0b2e66",
-      "logoChar": "6E",
+      "price": "₹27,052",
+      "logoBg": "#e11d48",
+      "logoChar": "AI",
       "fareType": "REGULAR",
       "refundableText": "Refundable",
       "baggageCabin": "7 KG (1 Piece)",
       "baggageCheckin": "15 KG (1 Piece)",
-      "seatsLeft": 1,
-      "rawPrice": 10061,
+      "seatsLeft": 9,
+      "rawPrice": 27052,
       "stopCount": 1,
-      "depHour": 22,
-      "arrHour": 9,
-      "isRefundableBoolean": true
-    },
-    "passenger": {
-      "firstName": "Rutuja",
-      "lastName": "Dhayatidak",
-      "gender": "MALE",
-      "dob": "07/08/2001",
-      "email": "rdhayatidak@gmail.com",
-      "phone": "9876543210",
-      "title": "MR"
-    },
-    "contact": {
-      "email": "rdhayatidak@gmail.com",
-      "phone": "9876543210",
-      "countryCode": "91"
+      "depHour": 19,
+      "arrHour": 5,
+      "isRefundableBoolean": true,
+      "rawOption": {
+        "travelOptionId": "AI-2857-BOM-BLR-1786730400__AI-9594-BLR-NAG-1786762500",
+        "travelOptionKey": "BOM_NAG",
+        "subTravelOptionIds": [
+          "AI-2857-BOM-BLR-1786730400__AI-9594-BLR-NAG-1786762500"
+        ],
+        "defaultFare": {
+          "associations": [
+            {
+              "subTravelOptionId": "AI-2857-BOM-BLR-1786730400__AI-9594-BLR-NAG-1786762500",
+              "fareId": "REGULAR__14/08/2026__AI^AI__AI^IX__BOM_NAG__true__RETAIL__E__DOM__OW__UNKNOWN__S043__ECO VALUE,ECO VALUE__AVN+Z52YgykNWwHxoXhbgeJzyN6M7LEVL4pxKDKAXQQnwzUexkruxa6BEp9LN/dsTv4oaurM0uheGEKUz2oqut79DFHGrlFVIdqUxkDkBu7D/be0G9jsSQAmht/gtq1RaGclnd3rRAZ2V2mhOIPjxjGDKx5HAhZk+84X5wj/BumUBeR93O5E6haJIHQlwamlhvBVhd2223XZb/1aZWgjSYTsoUj3Ig2dXg4FFtw9r8687hSw2x4z6WbkM6GngZTs6d4aryHKn/s9995UPNFHnSf/OADIwuNPALQJEJg=~~V3"
+            }
+          ]
+        }
+      },
+      "isRoundTrip": false,
+      "returnFlight": null
     }
   },
-  "error": "Request failed with status code 400",
-  "statusCode": 400,
+  "error": "Request failed with status code 500",
+  "statusCode": 500,
+  "responseStatus": 500,
+  "responseHeaders": {
+    "date": "Fri, 14 Aug 2026 13:55:26 GMT",
+    "content-type": "application/json",
+    "x-request-id": "5bd37261-7242-4b16-ad0c-71f36df0f4ff",
+    "content-length": "79",
+    "via": "1.1 google",
+    "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000"
+  },
   "response": {
-    "status": "INVALID_BOOK_REQUEST",
-    "errorMessage": "Invalid book request"
-  }
+    "status": "BOOK_FAILURE",
+    "tripId": "Q260814971490",
+    "errorMessage": "Book failed"
+  },
+  "fullResponseData": "{\"status\":\"BOOK_FAILURE\",\"tripId\":\"Q260814971490\",\"errorMessage\":\"Book failed\"}"
 }

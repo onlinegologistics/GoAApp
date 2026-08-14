@@ -742,7 +742,34 @@ exports.searchAirports = async (req, res) => {
  */
 exports.getFareCalendar = async (req, res) => {
     try {
-        const { origin, destination } = req.body;
+        let origin = req.body.origin;
+        let destination = req.body.destination;
+        let cleartripPayload = req.body;
+
+        // If the body is sent in Cleartrip's standard structure
+        if (req.body.flights && req.body.flights["1"]) {
+            origin = req.body.flights["1"].from;
+            destination = req.body.flights["1"].to;
+        } else if (req.body.from && req.body.to) {
+            // If flat fields are sent, construct Cleartrip B2B structure
+            origin = req.body.from;
+            destination = req.body.to;
+            cleartripPayload = {
+                adt: req.body.adt !== undefined ? Number(req.body.adt) : 1,
+                chd: req.body.chd !== undefined ? Number(req.body.chd) : 0,
+                inf: req.body.inf !== undefined ? Number(req.body.inf) : 0,
+                flights: {
+                    "1": {
+                        from: req.body.from,
+                        to: req.body.to
+                    }
+                },
+                dr: {
+                    begin: req.body.begin || req.body.startDate || "",
+                    end: req.body.end || req.body.endDate || ""
+                }
+            };
+        }
 
         const baseUrl = process.env.CLEARTRIP_FLIGHT_BASE_URL;
         const apiKey = process.env.CLEARTRIP_FLIGHT_API_KEY;
@@ -758,11 +785,12 @@ exports.getFareCalendar = async (req, res) => {
         const url = `${domain}/air/api/v1/fare-calendar/info`;
 
         console.log(`[Fare Calendar] Requesting Cleartrip: ${url} for ${origin || 'ALL'} -> ${destination || 'ALL'}`);
+        console.log(`[Fare Calendar] Payload:`, JSON.stringify(cleartripPayload));
 
         let responseData = null;
         if (token) {
             try {
-                const response = await axios.post(url, req.body, {
+                const response = await axios.post(url, cleartripPayload, {
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json',
@@ -770,14 +798,39 @@ exports.getFareCalendar = async (req, res) => {
                         'Authorization': `Bearer ${token}`
                     }
                 });
-                responseData = response.data;
+                console.log(`[Fare Calendar] Cleartrip response status: ${response.status}`);
+                console.log(`[Fare Calendar] Cleartrip response data:`, JSON.stringify(response.data));
+                if (response.data && Array.isArray(response.data.result)) {
+                    const fares = {};
+                    response.data.result.forEach(item => {
+                        if (item.dt && item.pr && item.pr["1"]) {
+                            const parts = item.dt.split('-');
+                            if (parts.length === 3) {
+                                const dateKey = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                                fares[dateKey] = {
+                                    price: Number(item.pr["1"]),
+                                    currency: 'INR',
+                                    available: true
+                                };
+                            }
+                        }
+                    });
+                    responseData = {
+                        success: true,
+                        origin: origin,
+                        destination: destination,
+                        fares: fares
+                    };
+                } else {
+                    responseData = response.data;
+                }
             } catch (err) {
-                console.warn('[Fare Calendar] Live Cleartrip API call fallback:', err.message);
+                console.warn('[Fare Calendar] Live Cleartrip API call fallback:', err.response ? err.response.data : err.message);
             }
         }
 
-        // Generate robust fallback fare calendar dataset if live QA partner environment is unavailable
-        if (!responseData) {
+        // Generate robust fallback fare calendar dataset if live QA partner environment is unavailable or returns empty fares
+        if (!responseData || !responseData.fares || Object.keys(responseData.fares).length === 0) {
             const fares = {};
             const today = new Date();
             for (let i = 0; i < 30; i++) {
@@ -993,6 +1046,16 @@ exports.fetchAncillaries = async (req, res) => {
             console.error('Failed to write ancillaries debug file:', fsErr.message);
         }
 
+        // Check if Cleartrip returned an error inside 200 OK body
+        if (response.data && response.data.error) {
+            console.error('[Fetch Ancillaries] Cleartrip returned error body:', response.data.error);
+            return res.status(400).json({
+                success: false,
+                message: response.data.error.message || 'Fare not found in cache or ancillaries unavailable.',
+                data: response.data
+            });
+        }
+
         res.status(200).json({
             success: true,
             data: response.data
@@ -1087,10 +1150,20 @@ exports.holdFlight = async (req, res) => {
 
         console.log('[Flight Hold] SUCCESS:', JSON.stringify(response.data).substring(0, 500));
 
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            fs.writeFileSync(path.join(__dirname, '..', '..', 'hold_success_debug.json'), JSON.stringify(response.data, null, 2));
+        } catch (e) {}
+
+        // Cleartrip may return an updated session ID in the response headers
+        const cleartripSessionId = response.headers?.['x-ct-session-id'] || activeSessionId;
+        console.log('[Flight Hold] Cleartrip response x-ct-session-id:', cleartripSessionId);
+
         res.status(200).json({
             success: true,
             data: response.data,
-            sessionId: activeSessionId
+            sessionId: cleartripSessionId
         });
 
     } catch (error) {
@@ -1140,12 +1213,32 @@ exports.holdFlight = async (req, res) => {
  */
 exports.bookFlight = async (req, res) => {
     try {
-        const { sessionId, travelIds, travelId, passenger, passengers, contact, flight, holdData, total, razorpayOrderId, razorpayPaymentId, razorpaySignature, ...bookPayload } = req.body;
+        const { sessionId, travelIds, travelId, passenger, passengers, contact, flight, holdData, total, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 
         if (!sessionId) {
             return res.status(400).json({
                 success: false,
                 message: 'sessionId is required to commit flight booking'
+            });
+        }
+
+        const idsArray = Array.isArray(travelIds) ? travelIds.filter(Boolean) : (travelId ? [travelId] : []);
+        if (idsArray.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'A held travelId is required to commit flight booking'
+            });
+        }
+
+        // Never issue a ticket after an incomplete/dismissed Razorpay checkout.
+        // The old condition only verified payment when all fields happened to be
+        // present, so a payload with an order id but no payment id still reached
+        // the supplier booking endpoint.
+        const paymentFields = [razorpayOrderId, razorpayPaymentId, razorpaySignature];
+        if (paymentFields.some(Boolean) && !paymentFields.every(Boolean)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment is incomplete. Please complete payment before booking.'
             });
         }
 
@@ -1177,71 +1270,15 @@ exports.bookFlight = async (req, res) => {
         const domain = baseUrl ? baseUrl.replace('/air/api/v4', '').replace('/air/api/v5', '').replace('/air/api/v6', '') : 'https://qa-air-b2b.cleartrip.com';
         const url = `${domain}/air/api/v4/book`;
 
-        const idsArray = Array.isArray(travelIds) ? travelIds : (travelId ? [travelId] : []);
-
         console.log(`[Flight Book] Requesting Cleartrip Book API with sessionId: ${sessionId}`);
         console.log(`[Flight Book] URL: ${url}`);
         console.log(`[Flight Book] travelIds:`, idsArray);
 
-        // Build Cleartrip-compatible passengerInformation from frontend passenger data
-        const paxList = Array.isArray(passengers) && passengers.length > 0 ? passengers : (passenger ? [passenger] : []);
-        const departureSeg = flight?.segments?.[0] || {};
-        const subTravelOptionId = holdData?.travelOptionList?.[0]?.subTravelOptions?.[0]?.subTravelOptionId || departureSeg.id || '';
-
-        const cleartripPassengers = paxList.map(p => {
-            const genderUpper = (p.gender || 'MALE').toUpperCase();
-            const titleUpper = (p.title || 'MR').toUpperCase();
-            return {
-                firstName: p.firstName || 'Traveller',
-                lastName: p.lastName || 'Passenger',
-                middleName: '',
-                gender: genderUpper === 'FEMALE' ? 'FEMALE' : 'MALE',
-                email: contact?.email || p.email || 'customer@goairclass.com',
-                travellerType: p.type || 'ADT',
-                dob: p.dob || '1990-01-01',
-                nationalityCode: 'IN',
-                address: {
-                    mobileNumber: String(contact?.phone || p.phone || '9876543210').replace(/\D/g, ''),
-                    countryCode: String(contact?.countryCode || '91').replace('+', '')
-                },
-                title: titleUpper === 'MRS' ? 'MRS' : (titleUpper === 'MS' ? 'MS' : 'MR'),
-                subTravelOptionAncillaries: (holdData?.travelOptionList || []).flatMap(opt =>
-                    (opt.subTravelOptions || []).map(sub => ({
-                        subTravelOptionId: sub.subTravelOptionId || subTravelOptionId,
-                        subTravelType: 'FLIGHT',
-                        flightAncillaries: (sub.passengerAncillaries || []).flatMap(pa => pa.flightAncillaries || []),
-                        ancillaries: []
-                    }))
-                ),
-                documents: []
-            };
-        });
-
-        const primaryPax = paxList[0] || {};
-        const customerInformation = {
-            firstName: primaryPax.firstName || 'Traveller',
-            lastName: primaryPax.lastName || 'Passenger',
-            title: (primaryPax.title || 'MR').toUpperCase() === 'MRS' ? 'MRS' : ((primaryPax.title || 'MR').toUpperCase() === 'MS' ? 'MS' : 'MR'),
-            emailId: contact?.email || primaryPax.email || 'customer@goairclass.com',
-            address: {
-                countryCode: String(contact?.countryCode || '91').replace('+', '')
-            },
-            phoneNumberDetails: {
-                phoneNumber: String(contact?.phone || primaryPax.phone || '9876543210').replace(/\D/g, ''),
-                countryCode: String(contact?.countryCode || '91').replace('+', '')
-            }
-        };
-
-        const metaInformation = {
-            currency: 'INR',
-            domain: 'IN',
-            sectorType: 'DOMESTIC',
-            itineraryId: sessionId
-        };
-
+        // The booking API consumes the token created by a successful hold. The
+        // verified Postman request for two adults confirms that only travelIds
+        // belong in this request body.
         const payloadToSend = {
-            travelIds: idsArray,
-            ...bookPayload
+            travelIds: idsArray
         };
 
         console.log('[Flight Book] Step 2: Sending payload to Cleartrip B2B API...');
@@ -1259,8 +1296,6 @@ exports.bookFlight = async (req, res) => {
         });
 
         console.log('[Flight Book] SUCCESS Response:', JSON.stringify(response.data).substring(0, 500));
-
-        // Save booking to local MongoDB database
         try {
             const departureSeg = flight?.segments?.[0] || {};
             const arrivalSeg = flight?.segments?.[flight?.segments?.length - 1] || departureSeg;
@@ -1390,12 +1425,21 @@ exports.bookFlight = async (req, res) => {
             const path = require('path');
             fs.writeFileSync(path.join(__dirname, '..', '..', 'book_error_debug.json'), JSON.stringify({
                 timestamp: new Date().toISOString(),
+                payloadSentToCleartrip: {
+                    travelIds: Array.isArray(req.body.travelIds) ? req.body.travelIds : (req.body.travelId ? [req.body.travelId] : [])
+                },
+                sessionIdUsed: req.body.sessionId,
                 requestBody: req.body,
                 error: error.message,
                 statusCode,
-                response: rawErrorData
+                responseStatus: error.response?.status,
+                responseHeaders: error.response?.headers || {},
+                response: rawErrorData,
+                fullResponseData: error.response?.data ? JSON.stringify(error.response.data) : 'N/A'
             }, null, 2));
             console.log('[Flight Book] Debug file written to book_error_debug.json');
+            console.log('[Flight Book] ERROR Full Response:', JSON.stringify(rawErrorData, null, 2));
+            console.log('[Flight Book] ERROR Response Headers:', JSON.stringify(error.response?.headers || {}));
         } catch (fsErr) {
             console.error('Failed to write book error debug file:', fsErr.message);
         }

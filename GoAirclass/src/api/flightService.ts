@@ -39,8 +39,8 @@ export const flightService = {
     return response.data;
   },
 
-  getFareCalendar: async (from: string, to: string, month: string) => {
-    const response = await apiClient.post('/flights/fare-calendar', { from, to, month });
+  getFareCalendar: async (payload: any) => {
+    const response = await apiClient.post('/flights/fare-calendar', payload);
     return response.data;
   },
 

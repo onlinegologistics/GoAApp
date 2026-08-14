@@ -146,6 +146,59 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
     | { index: number }
   >('depart');
   const [loading, setLoading] = useState<boolean>(false);
+  const [calendarFares, setCalendarFares] = useState<{[dateStr: string]: {price: number, currency: string, available?: boolean}}>({});
+
+  const fetchCalendarFares = async () => {
+    const fromCode = fromLocation.split('(')[1]?.replace(')', '') || '';
+    const toCode = toLocation.split('(')[1]?.replace(')', '') || '';
+
+    if (!fromCode || !toCode) return;
+
+    try {
+      const today = new Date();
+      const nextMonth = new Date();
+      nextMonth.setDate(today.getDate() + 30);
+
+      const formatDateStr = (date: Date) => {
+        const dd = String(date.getDate()).padStart(2, '0');
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const yyyy = date.getFullYear();
+        return `${dd}/${mm}/${yyyy}`;
+      };
+
+      const payload = {
+        adt: 1,
+        chd: 0,
+        inf: 0,
+        flights: {
+          "1": {
+            from: fromCode,
+            to: toCode
+          }
+        },
+        dr: {
+          begin: formatDateStr(today),
+          end: formatDateStr(nextMonth)
+        }
+      };
+
+      const res = await flightService.getFareCalendar(payload);
+      if (res && res.success && res.data) {
+        const faresObj = res.data.fares || res.data;
+        if (faresObj) {
+          setCalendarFares(faresObj);
+        }
+      }
+    } catch (err) {
+      console.log('[Fare Calendar] Error fetching fares:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (fromLocation && toLocation) {
+      fetchCalendarFares();
+    }
+  }, [fromLocation, toLocation]);
 
   const getMonthAbbreviation = (date: Date) => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -214,6 +267,12 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
                 : day.date?.toDateString() === returnDate.toDateString())
               : (pickingDateType && day.date?.toDateString() === multiCitySegments[pickingDateType.index]?.date?.toDateString());
               
+            const yearStr = day.date ? day.date.getFullYear() : '';
+            const monthStr = day.date ? String(day.date.getMonth() + 1).padStart(2, '0') : '';
+            const dayStr = day.date ? String(day.date.getDate()).padStart(2, '0') : '';
+            const dateKey = `${yearStr}-${monthStr}-${dayStr}`;
+            const fareInfo = calendarFares[dateKey];
+
             return (
               <TouchableOpacity
                 key={`day-${day.dayNum}`}
@@ -245,6 +304,14 @@ export default function SearchScreen({ onSearch, onBack, onSelectHotels, onSelec
                 ]}>
                   {day.dayNum}
                 </Text>
+                {fareInfo && fareInfo.price && (
+                  <Text style={[
+                    { fontSize: 9, color: '#10b981', marginTop: 2, fontWeight: 'bold' },
+                    isSelected && { color: '#ffffff' }
+                  ]}>
+                    ₹{Math.round(fareInfo.price)}
+                  </Text>
+                )}
               </TouchableOpacity>
             );
           })}

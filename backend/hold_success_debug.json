@@ -1,0 +1,359 @@
+{
+  "travelOptionList": [
+    {
+      "travelOptionId": "6E-6187-BOM-HYD-1787252400__6E-7452-HYD-NAG-1787272200",
+      "holdStatus": "SUCCESS",
+      "indicators": [
+        {
+          "type": "PRICE_CHANGED"
+        }
+      ],
+      "subTravelOptions": [
+        {
+          "subTravelOptionId": "6E-6187-BOM-HYD-1787252400__6E-7452-HYD-NAG-1787272200",
+          "subTravelType": "FLIGHT",
+          "travelId": "INDIGO__OWBOMNAG2106E61876E7452e09ed5d54f954f97810978b4760cc8d2exp1786723494627_B2B__DC_dc1__SC",
+          "fareId": "REGULAR__21/08/2026__6E^6E__6E^6E__BOM_NAG__false__RETAIL__E__DOM__OW__UNKNOWN__S050__REGULAR,REGULAR__AVN+Z52QAvY5w3KYkP/nVszRO2dzhjDrZFbhEFNl9x+DOZY12u+iA0BTPIlLy/QkRUa3tL4JfKu6+lKf5gvOjLZEU20MLmJhotHjnxcpLwt9mS430NgXhwED6Gb3v9S7e6JWSfouyqdScyvYx3gHjAplXGWb/qLQ/J3w997h3vznr/vCJIwge+4B9HaaAhcy2fU1zQfIgDXaK8DYmMmYBSiD/4vtWVEmZlPYE7ltZshVkJUdCcKSZM51HRdrWZuD1leQojaOPGhwVJsA19VpdtjM9EV2P6bi0wZiX+aQTHHiCodgVTKpLltlAn9quw==~~V3",
+          "fare": {
+            "fareId": "REGULAR__21/08/2026__6E^6E__6E^6E__BOM_NAG__false__RETAIL__E__DOM__OW__UNKNOWN__S050__REGULAR,REGULAR__AVN+Z52QAvY5w3KYkP/nVszRO2dzhjDrZFbhEFNl9x+DOZY12u+iA0BTPIlLy/QkRUa3tL4JfKu6+lKf5gvOjLZEU20MLmJhotHjnxcpLwt9mS430NgXhwED6Gb3v9S7e6JWSfouyqdScyvYx3gHjAplXGWb/qLQ/J3w997h3vznr/vCJIwge+4B9HaaAhcy2fU1zQfIgDXaK8DYmMmYBSiD/4vtWVEmZlPYE7ltZshVkJUdCcKSZM51HRdrWZuD1leQojaOPGhwVJsA19VpdtjM9EV2P6bi0wZiX+aQTHHiCodgVTKpLltlAn9quw==~~V3",
+            "fareGroup": "REGULAR_FARE",
+            "fareCategory": "RETAIL",
+            "pricing": {
+              "totalPrice": 43170,
+              "totalTax": 11526,
+              "totalBaseFare": 31644,
+              "totalPricePerAdult": 30373,
+              "fee": 0,
+              "discount": 0,
+              "otherCharges": 0,
+              "convenienceFee": 0
+            },
+            "subTravelOptionFare": [
+              {
+                "subTravelOptionKey": "BOM_NAG",
+                "paxFare": [
+                  {
+                    "paxType": "CHD",
+                    "paxCount": 1,
+                    "priceComponents": [
+                      {
+                        "category": "BF",
+                        "code": "",
+                        "amount": 10548,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "RCF",
+                        "amount": 100,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "UDF",
+                        "amount": 207,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "YQ",
+                        "amount": 675,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "CUTE",
+                        "amount": 50,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "SGST",
+                        "amount": 588,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "TTF",
+                        "amount": 393,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "AIRLINE-MSC",
+                        "amount": 236,
+                        "currency": "INR"
+                      }
+                    ],
+                    "otherCharges": 0,
+                    "convenienceFee": 0
+                  },
+                  {
+                    "paxType": "ADT",
+                    "paxCount": 2,
+                    "priceComponents": [
+                      {
+                        "category": "BF",
+                        "code": "",
+                        "amount": 10548,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "RCF",
+                        "amount": 100,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "UDF",
+                        "amount": 207,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "YQ",
+                        "amount": 675,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "CUTE",
+                        "amount": 50,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "SGST",
+                        "amount": 588,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "TTF",
+                        "amount": 393,
+                        "currency": "INR"
+                      },
+                      {
+                        "category": "TAX",
+                        "code": "AIRLINE-MSC",
+                        "amount": 2625.5,
+                        "currency": "INR"
+                      }
+                    ],
+                    "otherCharges": 0,
+                    "convenienceFee": 0
+                  }
+                ],
+                "flightFare": [
+                  {
+                    "flightId": "6E-7452-HYD-NAG-1787272200",
+                    "paxFares": [
+                      {
+                        "paxType": "ADT",
+                        "paxCount": 2,
+                        "priceComponents": [
+                          {
+                            "category": "BF",
+                            "code": "",
+                            "amount": 7600,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "AIRLINE-MSC",
+                            "amount": 2389.5,
+                            "currency": "INR"
+                          }
+                        ],
+                        "otherCharges": 0,
+                        "convenienceFee": 0
+                      },
+                      {
+                        "paxType": "CHD",
+                        "paxCount": 1,
+                        "priceComponents": [
+                          {
+                            "category": "BF",
+                            "code": "",
+                            "amount": 7600,
+                            "currency": "INR"
+                          }
+                        ],
+                        "otherCharges": 0,
+                        "convenienceFee": 0
+                      }
+                    ],
+                    "identifiers": {
+                      "cabinType": "ECONOMY",
+                      "fareClass": "R",
+                      "fareBasisCode": "E0IP",
+                      "rbd": "E",
+                      "availableSeatCount": 3,
+                      "brandName": "REGULAR",
+                      "brand": "REGULAR"
+                    }
+                  },
+                  {
+                    "flightId": "6E-6187-BOM-HYD-1787252400",
+                    "paxFares": [
+                      {
+                        "paxType": "ADT",
+                        "paxCount": 2,
+                        "priceComponents": [
+                          {
+                            "category": "BF",
+                            "code": "",
+                            "amount": 2948,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "RCF",
+                            "amount": 100,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "UDF",
+                            "amount": 207,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "CUTE",
+                            "amount": 50,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "YQ",
+                            "amount": 675,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "SGST",
+                            "amount": 588,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "TTF",
+                            "amount": 393,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "AIRLINE-MSC",
+                            "amount": 236,
+                            "currency": "INR"
+                          }
+                        ],
+                        "otherCharges": 0,
+                        "convenienceFee": 0
+                      },
+                      {
+                        "paxType": "CHD",
+                        "paxCount": 1,
+                        "priceComponents": [
+                          {
+                            "category": "BF",
+                            "code": "",
+                            "amount": 2948,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "RCF",
+                            "amount": 100,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "UDF",
+                            "amount": 207,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "CUTE",
+                            "amount": 50,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "YQ",
+                            "amount": 675,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "SGST",
+                            "amount": 588,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "TTF",
+                            "amount": 393,
+                            "currency": "INR"
+                          },
+                          {
+                            "category": "TAX",
+                            "code": "AIRLINE-MSC",
+                            "amount": 236,
+                            "currency": "INR"
+                          }
+                        ],
+                        "otherCharges": 0,
+                        "convenienceFee": 0
+                      }
+                    ],
+                    "identifiers": {
+                      "cabinType": "ECONOMY",
+                      "fareClass": "R",
+                      "fareBasisCode": "L0IP",
+                      "rbd": "L",
+                      "availableSeatCount": 3,
+                      "brandName": "REGULAR",
+                      "brand": "REGULAR"
+                    }
+                  }
+                ],
+                "revenue": 0
+              }
+            ],
+            "data": {
+              "AGENT_PCC": "1430772",
+              "CTC": "38391.0",
+              "SUPPLIER": "INDIGO",
+              "VALIDATING_CARRIER": "6E"
+            },
+            "transitVisaRequired": false,
+            "refundable": false,
+            "checkInBaggageAllowed": true
+          },
+          "passengerAncillaries": [
+            {
+              "paxIndex": 1,
+              "ancillaryHoldStatus": [],
+              "flightAncillaries": []
+            },
+            {
+              "paxIndex": 2,
+              "ancillaryHoldStatus": [],
+              "flightAncillaries": []
+            },
+            {
+              "paxIndex": 3,
+              "ancillaryHoldStatus": [],
+              "flightAncillaries": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tripId": "Q260814971500"
+}

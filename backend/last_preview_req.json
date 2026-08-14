@@ -1,7 +1,7 @@
 {
-  "sessionId": "65273301_10c17ab6-f699-405b-b41e-b08127f2134e-260813163948",
-  "searchId": "DC_Search-f419db81-aa2a-4915-be8c-ceda268138ea",
-  "dataId": "AVN+Z503XlIz6flEQ5hRvrncLhPNx12EQEcVLBkFWaJV24gKnu8Tf+H0/Oqy/sRegMk1coOZRoe6h+4X1XS2LEI3u2hCyR6nUJwiQaHq9eaj4/1Q5AgDJmZJTaoih8C2qp+7M3sNG58DQli87fjkxU0I6lNvWy8I9NuwI07oG2TrhSy7KzXQwqiSm9pvTko8MjTxQW/NEOo2/dO/swzBQ6faNtmXYQvDdm4DdQATI/9xsDGp5zbEN/2cmnBarX8M9rQgFe1F6FW9YRx0odH9EQGAFD+RlHLzk5ElaYReLL3+55fgdfBvSxphuJZ9bpRDQb/NspG4BNDq",
+  "sessionId": "65273301_55352e83-7ac0-48bb-b7fc-22529a25fc96-260814193415",
+  "searchId": "DC_Search-b92ae4c2-f7df-40c0-b168-fb580e0497f4",
+  "dataId": "AVN+Z517JukZbOzFmBdu3FQrdGyoJ0XmwpQUE5RAlXXYg43vaHa5VvymNmjeODeTPQUSl0WOYue0lkM+KupKAOcFzFuh+AMyAOKAD6WIhN75Dy5bXXoO4y8w//nkJ9pq5CRdMPQA3fNC5/s0rHQrXlyiJ4lcejg5Xj5tbyAKilpLvevIYXQMWkbPH1c/3UMzQkSkWNkS4cDRFgoIlKxoCsD7kkBW8iKOwuCe0J8bkKF+YaCZUN8vfsDNbDLfA0PXxz/AAhpJQ7kPIu8vEBHxdHw1Khe8eFSGhu9a2Cr3hEl2iecp+MSsHBAFYiooFWM1YJYmH/MLW/wniKIxMl7qcDR2xJ4IzXUmSA==",
   "flightPreviewCriteria": {
     "isMultiFareRequest": false,
     "maxFareCount": 0,
@@ -12,13 +12,18 @@
     "sectors": [
       {
         "index": 1,
-        "origin": "PNQ",
-        "destination": "BOM",
-        "departDate": "13/08/2026",
+        "origin": "BOM",
+        "destination": "NAG",
+        "departDate": "21/08/2026",
         "cabinType": "ECONOMY",
         "paxInfos": [
           {
             "paxType": "ADT",
+            "paxCount": 2,
+            "paxFareType": "DEFAULT"
+          },
+          {
+            "paxType": "CHD",
             "paxCount": 1,
             "paxFareType": "DEFAULT"
           }
@@ -28,12 +33,12 @@
   },
   "travelOptions": {
     "J1": {
-      "travelOptionId": "AI-1804-PNQ-DEL-1786638600__AI-2927-DEL-BOM-1786680000",
-      "price": 17376,
+      "travelOptionId": "6E-6187-BOM-HYD-1787252400__6E-7452-HYD-NAG-1787272200",
+      "price": 38391,
       "subTravelOptions": [
         {
-          "subTravelOptionId": "AI-1804-PNQ-DEL-1786638600__AI-2927-DEL-BOM-1786680000",
-          "fareId": "FARE_FAMILY__13/08/2026__AI^AI__AI^AI__PNQ_BOM__true__RETAIL__E__DOM__OW__UNKNOWN__S043__ECO FLEX,ECO FLEX__AVN+Z51TG8+NnmgvXBEfOdFuhTQ00MfPHOfkETwMix/rtj/vKGRKdCPVL+23edTZdClUu1MrGVdVn2hPRwTHJM7J9mz8rtTC+eEu2Wo3wKAcSyRoj3NbFRkLKmgGurVPW+ykx0M3QKnB5EnosQVN9ij5hyypH6EcSYQWySLEyEDXIgnTDr94I6sTqEeLejlB71b3NYXp4k+l2PexH57CViQyoXEpM2qNzWObzQQ+IhSqb3jVBK/Zz8mRof0z1+CNf9zU0ItrQ4zfWZG7n36Q9chxd6GQKSdFLIifxnI=~~V3"
+          "subTravelOptionId": "6E-6187-BOM-HYD-1787252400__6E-7452-HYD-NAG-1787272200",
+          "fareId": "REGULAR__21/08/2026__6E^6E__6E^6E__BOM_NAG__false__RETAIL__E__DOM__OW__UNKNOWN__S050__REGULAR,REGULAR__AVN+Z52QAvY5w3KYkP/nVszRO2dzhjDrZFbhEFNl9x+DOZY12u+iA0BTPIlLy/QkRUa3tL4JfKu6+lKf5gvOjLZEU20MLmJhotHjnxcpLwt9mS430NgXhwED6Gb3v9S7e6JWSfouyqdScyvYx3gHjAplXGWb/qLQ/J3w997h3vznr/vCJIwge+4B9HaaAhcy2fU1zQfIgDXaK8DYmMmYBSiD/4vtWVEmZlPYE7ltZshVkJUdCcKSZM51HRdrWZuD1leQojaOPGhwVJsA19VpdtjM9EV2P6bi0wZiX+aQTHHiCodgVTKpLltlAn9quw==~~V3"
         }
       ]
     }

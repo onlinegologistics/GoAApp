@@ -217,6 +217,100 @@ export default function FlightList({ onBack, onSelectFlight, searchResults, trip
     };
   }, [searchResults]);
 
+  const [activeDepartDate, setActiveDepartDate] = useState<string>(initialParams.departDate || '');
+  const [calendarFares, setCalendarFares] = useState<{[dateStr: string]: {price: number, currency: string}}>({});
+
+  useEffect(() => {
+    if (initialParams.departDate) {
+      setActiveDepartDate(initialParams.departDate);
+    }
+  }, [initialParams.departDate]);
+
+  const baseDate = useMemo(() => {
+    if (!activeDepartDate) return new Date();
+    const parsed = new Date(activeDepartDate);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+    return new Date();
+  }, [activeDepartDate]);
+
+  useEffect(() => {
+    const fetchFares = async () => {
+      const fromCode = initialParams.from;
+      const toCode = initialParams.to;
+      if (!fromCode || !toCode) return;
+      try {
+        const startDate = new Date(baseDate);
+        startDate.setDate(baseDate.getDate() - 7);
+        const endDate = new Date(baseDate);
+        endDate.setDate(baseDate.getDate() + 7);
+
+        const formatDateStr = (date: Date) => {
+          const dd = String(date.getDate()).padStart(2, '0');
+          const mm = String(date.getMonth() + 1).padStart(2, '0');
+          const yyyy = date.getFullYear();
+          return `${dd}/${mm}/${yyyy}`;
+        };
+
+        const payload = {
+          adt: initialParams.passengers?.adults || 1,
+          chd: initialParams.passengers?.children || 0,
+          inf: initialParams.passengers?.infants || 0,
+          flights: {
+            "1": {
+              from: fromCode,
+              to: toCode
+            }
+          },
+          dr: {
+            begin: formatDateStr(startDate),
+            end: formatDateStr(endDate)
+          }
+        };
+
+        const res = await flightService.getFareCalendar(payload);
+        if (res && res.success && res.data) {
+          const faresObj = res.data.fares || res.data;
+          if (faresObj) {
+            setCalendarFares(faresObj);
+          }
+        }
+      } catch (err) {
+        console.log('[FlightList Fare Calendar] Error fetching fares:', err);
+      }
+    };
+
+    fetchFares();
+  }, [initialParams.from, initialParams.to, baseDate, initialParams.passengers]);
+
+  const generatedChips = useMemo(() => {
+    const chips = [];
+    const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    for (let i = -3; i <= 3; i++) {
+      const d = new Date(baseDate);
+      d.setDate(baseDate.getDate() + i);
+
+      const yearStr = d.getFullYear();
+      const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+      const dayStr = String(d.getDate()).padStart(2, '0');
+      const dateKey = `${yearStr}-${monthStr}-${dayStr}`;
+
+      const fareInfo = calendarFares[dateKey];
+      const farePriceStr = fareInfo ? `₹${Math.round(fareInfo.price).toLocaleString('en-IN')}` : '—';
+
+      chips.push({
+        day: daysOfWeek[d.getDay()],
+        date: `${d.getDate()} ${months[d.getMonth()]}`,
+        price: farePriceStr,
+        dateKey: dateKey
+      });
+    }
+    return chips;
+  }, [baseDate, calendarFares]);
+
   const fetchPage = async (pageNumber: number, filterOverrides?: any) => {
     setLoading(true);
     try {
@@ -226,9 +320,11 @@ export default function FlightList({ onBack, onSelectFlight, searchResults, trip
       const activeMaxPrice = filterOverrides?.maxPrice !== undefined ? filterOverrides.maxPrice : maxPriceFilter;
       const activeDepTime = filterOverrides?.depTimeBucket !== undefined ? filterOverrides.depTimeBucket : depTimeBucket;
       const activeArrTime = filterOverrides?.arrTimeBucket !== undefined ? filterOverrides.arrTimeBucket : arrTimeBucket;
+      const activeDepart = filterOverrides?.departDate !== undefined ? filterOverrides.departDate : activeDepartDate;
 
       const res = await flightService.searchFlights({
         ...initialParams,
+        departDate: activeDepart,
         page: pageNumber,
         limit: 15,
         stops: activeStops,
@@ -383,14 +479,16 @@ export default function FlightList({ onBack, onSelectFlight, searchResults, trip
               {/* Horizontal Date Selector Strip */}
               <View style={styles.dateSelectorContainer}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll}>
-                  {DATE_CHIPS.map((chip) => {
-                    const key = `${chip.day}, ${chip.date}`;
-                    const isSelected = selectedDate === key;
+                  {generatedChips.map((chip) => {
+                    const isSelected = activeDepartDate === chip.dateKey;
                     return (
                       <TouchableOpacity
-                        key={key}
+                        key={chip.dateKey}
                         style={[styles.dateChip, isSelected && styles.dateChipSelected]}
-                        onPress={() => setSelectedDate(key)}
+                        onPress={() => {
+                          setActiveDepartDate(chip.dateKey);
+                          fetchPage(1, { departDate: chip.dateKey });
+                        }}
                         activeOpacity={0.8}
                       >
                         <Text style={[styles.dateChipDay, isSelected && styles.dateChipTextSelected]}>
@@ -398,7 +496,6 @@ export default function FlightList({ onBack, onSelectFlight, searchResults, trip
                         </Text>
                         <Text style={[
                           styles.dateChipPrice,
-                          chip.isCheap && styles.cheapPriceText,
                           isSelected && styles.dateChipTextSelected
                         ]}>
                           {chip.price}

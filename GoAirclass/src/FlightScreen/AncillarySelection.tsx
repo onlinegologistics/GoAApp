@@ -16,6 +16,8 @@ interface AncillarySelectionProps {
   searchIntent: string;
   sessionId?: string;
   fareId?: string;
+  passengersCount?: number;
+  passengerNames?: string[];
 }
 
 const AncillarySelection: React.FC<AncillarySelectionProps> = ({
@@ -26,7 +28,9 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
   subTravelOptions,
   searchIntent,
   sessionId,
-  fareId
+  fareId,
+  passengersCount = 1,
+  passengerNames = []
 }) => {
   const [loading, setLoading] = useState(true);
   const [ancillaryData, setAncillaryData] = useState<any>(null);
@@ -34,7 +38,8 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
   
   // Multi-segment state for 1-stop / multi-leg flights
   const [activeSegmentIndex, setActiveSegmentIndex] = useState<number>(0);
-  const [selectedSeatsMap, setSelectedSeatsMap] = useState<{ [segmentIndex: number]: any }>({});
+  const [selectedSeatsMap, setSelectedSeatsMap] = useState<{ [segmentIndex: number]: { [paxIdx: number]: any } }>({});
+  const [activePassengerIndex, setActivePassengerIndex] = useState<number>(0);
   const [selectedMeal, setSelectedMeal] = useState<any>(null);
   const [selectedBaggage, setSelectedBaggage] = useState<any>(null);
 
@@ -70,6 +75,12 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
 
   useEffect(() => {
     if (visible && flightPreviewId && subTravelOptions) {
+      // A previous modal session can leave the second flight leg selected. For
+      // BOM–BLR–NAG the first leg has seats whereas the second has meals only,
+      // so always start each fresh ancillary response from its first leg.
+      setActiveSegmentIndex(0);
+      setActivePassengerIndex(0);
+      setActiveTab('SEAT');
       fetchAncillaries();
     }
   }, [visible, flightPreviewId, subTravelOptions, sessionId, fareId]);
@@ -104,7 +115,7 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
             subTravelOptions: [
               {
                 id: subOptionIds[0],
-                fareId: fareId || subTravelOption.fareId || "",
+                fareId: subTravelOption.fareId || subTravelOption.fare?.fareId || fareId || "",
                 flights: flightsList
               }
             ],
@@ -136,7 +147,8 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.segmentScroll}>
           {segments.map((seg, idx) => {
             const isSelected = activeSegmentIndex === idx;
-            const chosenSeat = selectedSeatsMap[idx];
+            const chosenSeats = selectedSeatsMap[idx] || {};
+            const seatNumbers = Object.values(chosenSeats).map((s: any) => s?.number).filter(Boolean);
 
             return (
               <TouchableOpacity
@@ -148,9 +160,9 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
                 <Text style={[styles.segmentChipText, isSelected && styles.segmentChipTextActive]}>
                   Leg {idx + 1}: {seg.departureCode} → {seg.arrivalCode}
                 </Text>
-                {chosenSeat && (
+                {seatNumbers.length > 0 && (
                   <View style={styles.seatBadgeMini}>
-                    <Text style={styles.seatBadgeMiniText}>Seat {chosenSeat.number}</Text>
+                    <Text style={styles.seatBadgeMiniText}>Seats {seatNumbers.join(', ')}</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -275,10 +287,53 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
     }
   };
 
+  const renderPassengerTabs = () => {
+    const count = passengersCount || 1;
+    if (count <= 1) return null;
+
+    const arr = [];
+    for (let i = 0; i < count; i++) {
+      arr.push(i);
+    }
+
+    return (
+      <View style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#f1f5f9', flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={{ fontSize: 13, fontFamily: FONT_SEMI, color: '#475569', marginRight: 8 }}>Passenger:</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {arr.map((idx) => {
+            const isSelected = activePassengerIndex === idx;
+            const chosenSeat = selectedSeatsMap[activeSegmentIndex]?.[idx];
+            const passengerName = passengerNames[idx]?.trim() || `Pax ${idx + 1}`;
+            return (
+              <TouchableOpacity
+                key={idx}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 16,
+                  backgroundColor: isSelected ? THEME_COLOR : '#fff',
+                  borderWidth: 1,
+                  borderColor: isSelected ? THEME_COLOR : '#cbd5e1',
+                  marginRight: 6
+                }}
+                onPress={() => setActivePassengerIndex(idx)}
+              >
+                <Text style={{ fontSize: 12, color: isSelected ? '#fff' : '#0f172a', fontFamily: FONT_SEMI }}>
+                  {passengerName} {chosenSeat ? `(${chosenSeat.number})` : ''}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+    );
+  };
+
   const renderSeatsView = () => {
     const seats = extractSeats();
     const currentSegment = segments[activeSegmentIndex] || segments[0];
-    const currentSelectedSeat = selectedSeatsMap[activeSegmentIndex];
+    const segmentSelectedSeats = selectedSeatsMap[activeSegmentIndex] || {};
+    const currentSelectedSeat = segmentSelectedSeats[activePassengerIndex];
 
     if (seats.length === 0) {
       return (
@@ -375,7 +430,11 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
                       const seat = rowSeats[col];
                       if (!seat) return <View key={col} style={styles.seatSpacer} />;
                       
-                      const isSelected = currentSelectedSeat?.number === seat.number;
+                      const selectedPaxKey = Object.keys(segmentSelectedSeats).find(
+                        (key) => segmentSelectedSeats[Number(key)]?.number === seat.number
+                      );
+                      const isSelected = selectedPaxKey !== undefined;
+                      const isSelectedByActive = selectedPaxKey !== undefined && Number(selectedPaxKey) === activePassengerIndex;
                       const isOccupied = !seat.available;
 
                       return (
@@ -386,21 +445,40 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
                             styles.airplaneSeat,
                             seat.free ? styles.seatFree : styles.seatPaid,
                             isOccupied && styles.seatOccupied,
-                            isSelected && styles.seatSelected
+                            isSelected && styles.seatSelected,
+                            isSelectedByActive && { backgroundColor: THEME_COLOR, borderColor: THEME_COLOR }
                           ]}
                           onPress={() => {
-                            setSelectedSeatsMap(prev => ({
-                              ...prev,
-                              [activeSegmentIndex]: isSelected ? null : seat
-                            }));
+                            setSelectedSeatsMap(prev => {
+                              const currentSegSeats = { ...(prev[activeSegmentIndex] || {}) };
+                              
+                              if (currentSegSeats[activePassengerIndex]?.number === seat.number) {
+                                delete currentSegSeats[activePassengerIndex];
+                              } else {
+                                Object.keys(currentSegSeats).forEach((pIdxStr) => {
+                                  const pIdx = Number(pIdxStr);
+                                  if (currentSegSeats[pIdx]?.number === seat.number) {
+                                    delete currentSegSeats[pIdx];
+                                  }
+                                });
+                                currentSegSeats[activePassengerIndex] = seat;
+                                
+                                const totalPax = passengersCount || 1;
+                                const nextPax = (activePassengerIndex + 1) % totalPax;
+                                if (!currentSegSeats[nextPax]) {
+                                  setActivePassengerIndex(nextPax);
+                                }
+                              }
+                              return { ...prev, [activeSegmentIndex]: currentSegSeats };
+                            });
                           }}
                           activeOpacity={0.7}
                         >
                           <Text style={[styles.seatNumText, isSelected && styles.textWhite, isOccupied && styles.textOccupied]}>
-                            {seat.number}
+                            {isSelected ? `Pax ${Number(selectedPaxKey) + 1}` : seat.number}
                           </Text>
                           <Text style={[styles.seatPriceBadge, isSelected && styles.textWhite, isOccupied && styles.textOccupied]}>
-                            {isOccupied ? '✕' : seat.free ? 'FREE' : `₹${seat.price}`}
+                            {isSelected ? seat.number : (isOccupied ? '✕' : seat.free ? 'FREE' : `₹${seat.price}`)}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -418,7 +496,11 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
                       const seat = rowSeats[col];
                       if (!seat) return <View key={col} style={styles.seatSpacer} />;
 
-                      const isSelected = currentSelectedSeat?.number === seat.number;
+                      const selectedPaxKey = Object.keys(segmentSelectedSeats).find(
+                        (key) => segmentSelectedSeats[Number(key)]?.number === seat.number
+                      );
+                      const isSelected = selectedPaxKey !== undefined;
+                      const isSelectedByActive = selectedPaxKey !== undefined && Number(selectedPaxKey) === activePassengerIndex;
                       const isOccupied = !seat.available;
 
                       return (
@@ -429,21 +511,40 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
                             styles.airplaneSeat,
                             seat.free ? styles.seatFree : styles.seatPaid,
                             isOccupied && styles.seatOccupied,
-                            isSelected && styles.seatSelected
+                            isSelected && styles.seatSelected,
+                            isSelectedByActive && { backgroundColor: THEME_COLOR, borderColor: THEME_COLOR }
                           ]}
                           onPress={() => {
-                            setSelectedSeatsMap(prev => ({
-                              ...prev,
-                              [activeSegmentIndex]: isSelected ? null : seat
-                            }));
+                            setSelectedSeatsMap(prev => {
+                              const currentSegSeats = { ...(prev[activeSegmentIndex] || {}) };
+                              
+                              if (currentSegSeats[activePassengerIndex]?.number === seat.number) {
+                                delete currentSegSeats[activePassengerIndex];
+                              } else {
+                                Object.keys(currentSegSeats).forEach((pIdxStr) => {
+                                  const pIdx = Number(pIdxStr);
+                                  if (currentSegSeats[pIdx]?.number === seat.number) {
+                                    delete currentSegSeats[pIdx];
+                                  }
+                                });
+                                currentSegSeats[activePassengerIndex] = seat;
+
+                                const totalPax = passengersCount || 1;
+                                const nextPax = (activePassengerIndex + 1) % totalPax;
+                                if (!currentSegSeats[nextPax]) {
+                                  setActivePassengerIndex(nextPax);
+                                }
+                              }
+                              return { ...prev, [activeSegmentIndex]: currentSegSeats };
+                            });
                           }}
                           activeOpacity={0.7}
                         >
                           <Text style={[styles.seatNumText, isSelected && styles.textWhite, isOccupied && styles.textOccupied]}>
-                            {seat.number}
+                            {isSelected ? `Pax ${Number(selectedPaxKey) + 1}` : seat.number}
                           </Text>
                           <Text style={[styles.seatPriceBadge, isSelected && styles.textWhite, isOccupied && styles.textOccupied]}>
-                            {isOccupied ? '✕' : seat.free ? 'FREE' : `₹${seat.price}`}
+                            {isSelected ? seat.number : (isOccupied ? '✕' : seat.free ? 'FREE' : `₹${seat.price}`)}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -538,8 +639,10 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
 
   const calculateTotalPrice = () => {
     let total = 0;
-    Object.values(selectedSeatsMap).forEach((seat: any) => {
-      if (seat?.price) total += seat.price;
+    Object.values(selectedSeatsMap).forEach((segSeats: any) => {
+      Object.values(segSeats || {}).forEach((seat: any) => {
+        if (seat?.price) total += seat.price;
+      });
     });
     if (selectedMeal?.price) total += selectedMeal.price;
     if (selectedBaggage?.price) total += selectedBaggage.price;
@@ -579,6 +682,7 @@ const AncillarySelection: React.FC<AncillarySelectionProps> = ({
 
         {renderTabs()}
         {activeTab === 'SEAT' && renderSegmentTabs()}
+        {activeTab === 'SEAT' && renderPassengerTabs()}
 
         {renderContent()}
 

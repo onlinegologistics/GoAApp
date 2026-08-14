@@ -32,7 +32,7 @@ mongoose.connect(process.env.MONGO_URI, {
         const { syncAllHotelsCron } = require('./controllers/hotel/hotelController');
         syncAllHotelsCron();
 
-        const port = process.env.PORT || 5000;
+        const port = process.env.PORT || 5001;
         const server = app.listen(port, () => {
             console.log(` 🚀 Server running on port ${port}`);
         });

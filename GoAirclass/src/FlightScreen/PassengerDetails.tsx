@@ -829,6 +829,56 @@ export default function PassengerDetails({
   const [showTitlePicker, setShowTitlePicker] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
 
+  // Multi-passenger Form State
+  const [passengersList, setPassengersList] = useState<any[]>([]);
+  const [activeTitlePickerIndex, setActiveTitlePickerIndex] = useState<number | null>(null);
+  const [activeGenderPickerIndex, setActiveGenderPickerIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    const searchIntent = Object.values(searchResults?.data?.searchIntent || searchResults?.searchIntent || {})[0] as any || {};
+    const paxList = searchIntent.paxInfos || searchIntent.paxCriteria || searchIntent.paxDetails || [];
+
+    let adults = 1;
+    let children = 0;
+    let infants = 0;
+
+    if (paxList.length > 0) {
+      const adtGroup = paxList.find((p: any) => (p.paxType || p.type) === 'ADT');
+      const chdGroup = paxList.find((p: any) => (p.paxType || p.type) === 'CHD');
+      const infGroup = paxList.find((p: any) => (p.paxType || p.type) === 'INF');
+
+      adults = adtGroup ? (adtGroup.paxCount || adtGroup.count || 1) : 1;
+      children = chdGroup ? (chdGroup.paxCount || chdGroup.count || 0) : 0;
+      infants = infGroup ? (infGroup.paxCount || infGroup.count || 0) : 0;
+    } else if (flightSearchParams?.passengers) {
+      const p = flightSearchParams.passengers;
+      adults = p.adults || 1;
+      children = p.children || 0;
+      infants = p.infants || 0;
+    }
+
+    const list = [];
+    for (let i = 0; i < adults; i++) {
+      list.push({ type: 'ADT', label: `ADULT ${i + 1}`, title: 'Mr', firstName: '', lastName: '', gender: 'Male', dob: '07/08/2001' });
+    }
+    for (let i = 0; i < children; i++) {
+      list.push({ type: 'CHD', label: `CHILD ${i + 1}`, title: 'Mstr', firstName: '', lastName: '', gender: 'Male', dob: '07/08/2018' });
+    }
+    for (let i = 0; i < infants; i++) {
+      list.push({ type: 'INF', label: `INFANT ${i + 1}`, title: 'Mstr', firstName: '', lastName: '', gender: 'Male', dob: '07/08/2025' });
+    }
+
+    setPassengersList(list);
+  }, [searchResults, flightSearchParams]);
+
+  const updatePassengerField = (index: number, field: string, value: any) => {
+    setPassengersList(prev => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
   // Ancillary Modal State
    const [showAncillaries, setShowAncillaries] = useState(false);
   const [outboundAncillaries, setOutboundAncillaries] = useState<any>(null);
@@ -915,14 +965,24 @@ export default function PassengerDetails({
             }
           ],
           passengerInformation: {
-            passengers: [
-              {
-                firstName: firstName.trim(),
-                lastName: lastName.trim(),
+            passengers: passengersList.map((p) => {
+              const formattedGender = (p.gender || 'MALE').toUpperCase() === 'FEMALE' ? 'FEMALE' : 'MALE';
+              const formattedTitle = (p.title || 'Mr').toUpperCase();
+              let formattedDob = "";
+              if (p.dob) {
+                const parts = p.dob.split('/');
+                if (parts.length === 3) {
+                  formattedDob = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                }
+              }
+
+              return {
+                firstName: p.firstName.trim(),
+                lastName: p.lastName.trim(),
                 middleName: "",
                 gender: formattedGender,
                 email: email.trim(),
-                travellerType: "ADT",
+                travellerType: p.type,
                 dob: formattedDob,
                 nationalityCode: "IN",
                 address: {
@@ -934,18 +994,22 @@ export default function PassengerDetails({
                   {
                     subTravelOptionId: subOptIdKey,
                     subTravelType: "FLIGHT",
+                    // Cleartrip expects every traveller to carry the complete
+                    // flight-leg ancillary structure, even when no add-on is
+                    // selected.  Sending it only for pax 1 makes multi-pax
+                    // holds differ from the working Postman request.
                     flightAncillaries: flightAncillariesList,
                     ancillaries: ancillariesSelected?.ancillaries || []
                   }
                 ],
                 documents: []
-              }
-            ]
+              };
+            })
           },
           customerInformation: {
-            firstName: firstName.trim(),
-            lastName: lastName.trim(),
-            title: formattedTitle,
+            firstName: passengersList[0]?.firstName.trim() || '',
+            lastName: passengersList[0]?.lastName.trim() || '',
+            title: (passengersList[0]?.title || 'Mr').toUpperCase(),
             emailId: email.trim(),
             address: {
               countryCode: "91"
@@ -990,8 +1054,10 @@ export default function PassengerDetails({
         const retRes = await flightService.holdFlight(returnPayload);
 
         if (outRes && (outRes.success || outRes.data) && retRes && (retRes.success || retRes.data)) {
-          setOutboundHoldResult(outRes.data || outRes);
-          setHoldResult(retRes.data || retRes);
+          const outboundHeldData = outRes.data || outRes;
+          const returnHeldData = retRes.data || retRes;
+          setOutboundHoldResult({ ...outboundHeldData, sessionId: outRes.sessionId || outboundHeldData?.sessionId || outboundPayload.sessionId });
+          setHoldResult({ ...returnHeldData, sessionId: retRes.sessionId || returnHeldData?.sessionId || returnPayload.sessionId });
           setShowHoldSuccessModal(true);
         } else {
           Alert.alert('Hold Booking Status', 'One or both flight holds failed.');
@@ -1001,7 +1067,13 @@ export default function PassengerDetails({
         const holdPayload = buildHoldPayload(searchResults, selectedFlight, selectedOption, previewDataObj, sessionId, outboundAncillariesSelected || returnAncillariesSelected);
         const res = await flightService.holdFlight(holdPayload);
         if (res && (res.success || res.data)) {
-          setHoldResult(res.data || res);
+          // The book call must use the session that created the hold.  Keep the
+          // response header value alongside the hold data; previously it was
+          // discarded by `res.data || res`, which could cause a BOOK_FAILURE.
+          const heldData = res.data || res;
+          const heldSessionId = res.sessionId || heldData?.sessionId || holdPayload.sessionId;
+          setHoldResult({ ...heldData, sessionId: heldSessionId });
+          console.log('[PassengerDetails] Using sessionId returned by Hold for booking:', heldSessionId);
           setShowHoldSuccessModal(true);
         } else {
           Alert.alert('Hold Booking Status', res?.message || 'Hold completed successfully!');
@@ -1129,7 +1201,8 @@ export default function PassengerDetails({
 
         console.log(`[PassengerDetails] Holding Multi-City Leg ${i + 1} of ${selectedFlight.multiCityFlights.length}...`);
         const holdRes = await flightService.holdFlight(payload);
-        results.push(holdRes?.data || holdRes);
+        const heldData = holdRes?.data || holdRes;
+        results.push({ ...heldData, sessionId: holdRes?.sessionId || heldData?.sessionId || payload.sessionId });
       }
 
       setMultiCityHoldResults(results);
@@ -1156,13 +1229,43 @@ export default function PassengerDetails({
 
       const activeSessionId = sessionId || previewDataObj.sessionId || searchResults?.sessionId || searchResults?.data?.sessionId || searchResults?.data?.searchId || searchResults?.searchId || '';
 
-      const travelIdFromHold = holdResult?.heldState?.travelIds?.[0] || holdResult?.travelIds?.[0] || holdResult?.travelId;
-      const fallbackTravelId = previewDataObj.subTravelOptions?.[0]?.travelOptionId || selectedFlight?.id || 'SPICEJET__OWDELPNQ100SG105e2bab3f27ca6434b8b7dec0c8e5e0ab7exp1786460827992__DC_dc1__SC';
-      const travelIdToBook = travelIdFromHold || fallbackTravelId;
+      let previewSubOptKey = selectedFlight?.id;
+      if (previewDataObj?.subTravelOptions && typeof previewDataObj.subTravelOptions === 'object') {
+        const keys = Object.keys(previewDataObj.subTravelOptions);
+        if (keys.length > 0) {
+          previewSubOptKey = keys[0];
+        }
+      }
+
+      // The CORRECT tokenized travelId lives in subTravelOptions[0].travelId (e.g. "SPICEJET__OW...")
+      const travelIdFromHold = holdResult?.travelOptionList?.[0]?.subTravelOptions?.[0]?.travelId
+        || holdResult?.data?.travelOptionList?.[0]?.subTravelOptions?.[0]?.travelId
+        || holdResult?.heldState?.travelIds?.[0] 
+        || holdResult?.travelIds?.[0] 
+        || holdResult?.travelId;
+
+      console.log('[PassengerDetails] ==== HOLD RESULT DUMP ====');
+      console.log('[PassengerDetails] holdResult keys:', holdResult ? Object.keys(holdResult) : 'null');
+      console.log('[PassengerDetails] holdResult.data keys:', holdResult?.data ? Object.keys(holdResult.data) : 'null');
+      console.log('[PassengerDetails] holdResult.heldState:', JSON.stringify(holdResult?.heldState)?.substring(0, 500));
+      console.log('[PassengerDetails] holdResult.travelOptionList:', JSON.stringify(holdResult?.travelOptionList)?.substring(0, 500));
+      console.log('[PassengerDetails] holdResult.data.travelOptionList:', JSON.stringify(holdResult?.data?.travelOptionList)?.substring(0, 500));
+      console.log('[PassengerDetails] travelIdFromHold:', travelIdFromHold);
+      console.log('[PassengerDetails] previewSubOptKey:', previewSubOptKey);
+      console.log('[PassengerDetails] Full holdResult:', JSON.stringify(holdResult)?.substring(0, 1000));
+      console.log('[PassengerDetails] ==========================');
+
+      const travelIdToBook = travelIdFromHold || previewSubOptKey || selectedOption?.travelOptionId || selectedOption?.id;
+      console.log('[PassengerDetails] FINAL travelIdToBook:', travelIdToBook);
 
       // 1. Create Razorpay Payment Order on Backend
-      const numericTotal = Number(rawPriceNum) || 5000;
-      console.log('[PassengerDetails] Step 1: Creating Razorpay Order for amount:', numericTotal);
+      // A hold is the final supplier-priced state.  The search-card amount can
+      // differ from it (the failing Air India hold was 29,152 while the card
+      // still showed 27,052), so never charge against the stale search price.
+      const heldTotal = holdResult?.travelOptionList?.[0]?.subTravelOptions?.[0]?.fare?.pricing?.totalPrice
+        || holdResult?.data?.travelOptionList?.[0]?.subTravelOptions?.[0]?.fare?.pricing?.totalPrice;
+      const numericTotal = Number(heldTotal) || Number(rawPriceNum) || 5000;
+      console.log('[PassengerDetails] Step 1: Creating Razorpay Order for held amount:', numericTotal);
 
       let razorpayOrderData: any = null;
       let razorpayData: any = null;
@@ -1205,20 +1308,35 @@ export default function PassengerDetails({
         console.warn('[PassengerDetails] Razorpay SDK checkout info:', payErr?.message || payErr);
       }
 
+      if (razorpayOrderData && !razorpayData?.razorpay_payment_id) {
+        Alert.alert('Payment Required', 'Payment was not completed, so the ticket has not been issued.');
+        return;
+      }
+
       // 3. Commit Cleartrip Book API call (Passing Razorpay verification IDs & signature)
       const baseBookPayload = {
         razorpayOrderId: razorpayData?.razorpay_order_id || razorpayOrderData?.orderId || '',
         razorpayPaymentId: razorpayData?.razorpay_payment_id || '',
         razorpaySignature: razorpayData?.razorpay_signature || '',
-        passenger: {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          gender: (gender || 'MALE').toUpperCase(),
-          dob: dob || '1997-01-01',
-          email: email.trim(),
-          phone: mobile.trim(),
-          title: title ? title.toUpperCase() : 'MR'
-        },
+        passengers: passengersList.map(p => {
+          let formattedDob = "";
+          if (p.dob) {
+            const parts = p.dob.split('/');
+            if (parts.length === 3) {
+              formattedDob = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+          }
+          return {
+            firstName: p.firstName.trim(),
+            lastName: p.lastName.trim(),
+            gender: p.gender.toUpperCase(),
+            dob: formattedDob,
+            email: email.trim(),
+            phone: mobile.trim(),
+            title: p.title.toUpperCase(),
+            type: p.type
+          };
+        }),
         contact: {
           email: email.trim(),
           phone: mobile.trim(),
@@ -1284,8 +1402,9 @@ export default function PassengerDetails({
       } else {
         const bookPayload = {
           ...baseBookPayload,
-          sessionId: activeSessionId,
+          sessionId: holdResult?.sessionId || activeSessionId,
           travelIds: [travelIdToBook],
+          holdData: holdResult,
           flight: selectedFlight
         };
         console.log('[PassengerDetails] Step 3: Executing Cleartrip Book API with payload:', JSON.stringify(bookPayload, null, 2));
@@ -1311,9 +1430,16 @@ export default function PassengerDetails({
   };
 
   const handleNext = () => {
-    if (!firstName.trim() || !lastName.trim()) {
-      Alert.alert('Required Information', 'Please enter Passenger First Name and Last Name.');
-      return;
+    for (let i = 0; i < passengersList.length; i++) {
+      const p = passengersList[i];
+      if (!p.firstName.trim() || !p.lastName.trim()) {
+        Alert.alert('Required Information', `Please enter First Name and Last Name for ${p.label}.`);
+        return;
+      }
+      if (!p.dob.trim()) {
+        Alert.alert('Required Information', `Please enter Date of Birth for ${p.label}.`);
+        return;
+      }
     }
     if (!email.trim() || !mobile.trim()) {
       Alert.alert('Required Information', 'Please enter valid Email Address and Mobile Number.');
@@ -1837,119 +1963,134 @@ export default function PassengerDetails({
             <Text style={styles.cardSectionTitle}>PASSENGER INFORMATION</Text>
           </View>
 
-          <View style={styles.passengerSubHeader}>
-            <Text style={styles.passengerIconSub}>👤</Text>
-            <Text style={styles.passengerSubHeaderText}>ADULT 1 (ADULT)</Text>
-          </View>
+          {passengersList.map((passenger, index) => {
+            const showTitlePicker = activeTitlePickerIndex === index;
+            const showGenderPicker = activeGenderPickerIndex === index;
 
-          <View style={styles.formRow}>
-            {/* Title Selection */}
-            <View style={styles.titleCol}>
-              <Text style={styles.fieldLabel}>TITLE *</Text>
-              <TouchableOpacity
-                style={styles.dropdownInput}
-                onPress={() => setShowTitlePicker(!showTitlePicker)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.dropdownText}>{title}</Text>
-                <Text style={styles.dropdownArrow}>∨</Text>
-              </TouchableOpacity>
-            </View>
+            return (
+              <View key={index} style={{ marginBottom: index < passengersList.length - 1 ? 24 : 0, borderBottomWidth: index < passengersList.length - 1 ? 1 : 0, borderBottomColor: '#f1f5f9', paddingBottom: index < passengersList.length - 1 ? 16 : 0 }}>
+                <View style={styles.passengerSubHeader}>
+                  <Text style={styles.passengerIconSub}>👤</Text>
+                  <Text style={styles.passengerSubHeaderText}>{passenger.label} ({passenger.type === 'ADT' ? 'ADULT' : passenger.type === 'CHD' ? 'CHILD' : 'INFANT'})</Text>
+                </View>
 
-            {/* First Name Input */}
-            <View style={styles.firstNameCol}>
-              <Text style={styles.fieldLabel}>FIRST NAME *</Text>
-              <TextInput
-                style={styles.textInput}
-                value={firstName}
-                onChangeText={setFirstName}
-                placeholder="e.g. Rahul"
-                placeholderTextColor="#94a3b8"
-              />
-            </View>
+                <View style={styles.formRow}>
+                  {/* Title Selection */}
+                  <View style={styles.titleCol}>
+                    <Text style={styles.fieldLabel}>TITLE *</Text>
+                    <TouchableOpacity
+                      style={styles.dropdownInput}
+                      onPress={() => {
+                        setActiveTitlePickerIndex(showTitlePicker ? null : index);
+                        setActiveGenderPickerIndex(null);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.dropdownText}>{passenger.title}</Text>
+                      <Text style={styles.dropdownArrow}>∨</Text>
+                    </TouchableOpacity>
+                  </View>
 
-            {/* Last Name Input */}
-            <View style={styles.lastNameCol}>
-              <Text style={styles.fieldLabel}>LAST NAME *</Text>
-              <TextInput
-                style={styles.textInput}
-                value={lastName}
-                onChangeText={setLastName}
-                placeholder="e.g. Sharma"
-                placeholderTextColor="#94a3b8"
-              />
-            </View>
-          </View>
+                  {/* First Name Input */}
+                  <View style={styles.firstNameCol}>
+                    <Text style={styles.fieldLabel}>FIRST NAME *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={passenger.firstName}
+                      onChangeText={(val) => updatePassengerField(index, 'firstName', val)}
+                      placeholder="e.g. Rahul"
+                      placeholderTextColor="#94a3b8"
+                    />
+                  </View>
 
-          {/* Inline Dropdown for Title options */}
-          {showTitlePicker && (
-            <View style={styles.pickerOptionsContainer}>
-              {['Mr', 'Mrs', 'Ms', 'Dr'].map((item) => (
-                <TouchableOpacity
-                  key={item}
-                  style={styles.pickerOptionItem}
-                  onPress={() => {
-                    setTitle(item);
-                    setShowTitlePicker(false);
-                  }}
-                >
-                  <Text style={[styles.pickerOptionText, title === item && styles.pickerOptionTextSelected]}>
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+                  {/* Last Name Input */}
+                  <View style={styles.lastNameCol}>
+                    <Text style={styles.fieldLabel}>LAST NAME *</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={passenger.lastName}
+                      onChangeText={(val) => updatePassengerField(index, 'lastName', val)}
+                      placeholder="e.g. Sharma"
+                      placeholderTextColor="#94a3b8"
+                    />
+                  </View>
+                </View>
 
-          <View style={styles.formRow}>
-            {/* Gender Selection */}
-            <View style={styles.genderCol}>
-              <Text style={styles.fieldLabel}>GENDER *</Text>
-              <TouchableOpacity
-                style={styles.dropdownInput}
-                onPress={() => setShowGenderPicker(!showGenderPicker)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.dropdownText}>{gender}</Text>
-                <Text style={styles.dropdownArrow}>∨</Text>
-              </TouchableOpacity>
-            </View>
+                {/* Inline Dropdown for Title options */}
+                {showTitlePicker && (
+                  <View style={styles.pickerOptionsContainer}>
+                    {(passenger.type === 'ADT' ? ['Mr', 'Mrs', 'Ms', 'Dr'] : ['Mstr', 'Miss']).map((item) => (
+                      <TouchableOpacity
+                        key={item}
+                        style={styles.pickerOptionItem}
+                        onPress={() => {
+                          updatePassengerField(index, 'title', item);
+                          setActiveTitlePickerIndex(null);
+                        }}
+                      >
+                        <Text style={[styles.pickerOptionText, passenger.title === item && styles.pickerOptionTextSelected]}>
+                          {item}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
 
-            {/* DOB Input */}
-            <View style={styles.dobCol}>
-              <Text style={styles.fieldLabel}>DATE OF BIRTH *</Text>
-              <View style={styles.dateInputWrapper}>
-                <TextInput
-                  style={[styles.textInput, styles.dateInput]}
-                  value={dob}
-                  onChangeText={setDob}
-                  placeholder="DD/MM/YYYY"
-                  placeholderTextColor="#94a3b8"
-                />
-                <Text style={styles.calendarIcon}>📅</Text>
+                <View style={styles.formRow}>
+                  {/* Gender Selection */}
+                  <View style={styles.genderCol}>
+                    <Text style={styles.fieldLabel}>GENDER *</Text>
+                    <TouchableOpacity
+                      style={styles.dropdownInput}
+                      onPress={() => {
+                        setActiveGenderPickerIndex(showGenderPicker ? null : index);
+                        setActiveTitlePickerIndex(null);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.dropdownText}>{passenger.gender}</Text>
+                      <Text style={styles.dropdownArrow}>∨</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* DOB Input */}
+                  <View style={styles.dobCol}>
+                    <Text style={styles.fieldLabel}>DATE OF BIRTH *</Text>
+                    <View style={styles.dateInputWrapper}>
+                      <TextInput
+                        style={[styles.textInput, styles.dateInput]}
+                        value={passenger.dob}
+                        onChangeText={(val) => updatePassengerField(index, 'dob', val)}
+                        placeholder="DD/MM/YYYY"
+                        placeholderTextColor="#94a3b8"
+                      />
+                      <Text style={styles.calendarIcon}>📅</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Inline Dropdown for Gender options */}
+                {showGenderPicker && (
+                  <View style={styles.pickerOptionsContainer}>
+                    {['Male', 'Female', 'Other'].map((item) => (
+                      <TouchableOpacity
+                        key={item}
+                        style={styles.pickerOptionItem}
+                        onPress={() => {
+                          updatePassengerField(index, 'gender', item);
+                          setActiveGenderPickerIndex(null);
+                        }}
+                      >
+                        <Text style={[styles.pickerOptionText, passenger.gender === item && styles.pickerOptionTextSelected]}>
+                          {item}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
-            </View>
-          </View>
-
-          {/* Inline Dropdown for Gender options */}
-          {showGenderPicker && (
-            <View style={styles.pickerOptionsContainer}>
-              {['Male', 'Female', 'Other'].map((item) => (
-                <TouchableOpacity
-                  key={item}
-                  style={styles.pickerOptionItem}
-                  onPress={() => {
-                    setGender(item);
-                    setShowGenderPicker(false);
-                  }}
-                >
-                  <Text style={[styles.pickerOptionText, gender === item && styles.pickerOptionTextSelected]}>
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+            );
+          })}
         </View>
 
         {/* Contact Details Card */}
@@ -2104,6 +2245,11 @@ export default function PassengerDetails({
       {/* Ancillary Selection Modal */}
       <AncillarySelection
         visible={showAncillaries}
+        passengersCount={passengersList.length || passengerCount}
+        passengerNames={passengersList.map((passenger, index) => {
+          const fullName = `${passenger.firstName || ''} ${passenger.lastName || ''}`.trim();
+          return fullName || passenger.label || `Pax ${index + 1}`;
+        })}
         onClose={() => {
           setShowAncillaries(false);
           setAncillaryStep(null);
@@ -2201,7 +2347,11 @@ export default function PassengerDetails({
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
                 <Text style={{ fontSize: 13, color: '#64748b' }}>Passenger:</Text>
                 <Text style={{ fontSize: 13, fontWeight: '600', color: '#1e293b' }}>
-                  {firstName} {lastName}
+                  {passengersList.length > 0 
+                    ? (passengersList.length === 1 
+                        ? `${passengersList[0].firstName} ${passengersList[0].lastName}`
+                        : `${passengersList[0].firstName} ${passengersList[0].lastName} (+${passengersList.length - 1} more)`)
+                    : `${firstName} ${lastName}`}
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
