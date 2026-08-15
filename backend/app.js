@@ -109,7 +109,7 @@ app.use('/uploads/banners', require('express').static('uploads/banners'));
 
 
 app.get("/", (req, res) => {
-    res.send("API Working...");
+    res.send("App backend is live");
 });
 
 // Auto Expire Coupons Cron Job (Runs every hour)
