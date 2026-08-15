@@ -13,7 +13,8 @@ RUN apt-get update && apt-get install -y \
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
-    NODE_ENV=production
+    NODE_ENV=production \
+    PORT=7001
 
 WORKDIR /app
 
@@ -22,6 +23,12 @@ RUN npm ci --omit=dev
 
 COPY . .
 
-EXPOSE 5000
+# Persisted at runtime via docker-compose volumes; make sure the dirs exist in the image
+RUN mkdir -p uploads tickets
+
+EXPOSE 7001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD node -e "require('http').get('http://127.0.0.1:'+(process.env.PORT||7001)+'/', r => process.exit(r.statusCode===200?0:1)).on('error', () => process.exit(1))"
 
 CMD ["node", "server.js"]

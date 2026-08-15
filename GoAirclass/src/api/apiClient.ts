@@ -16,7 +16,7 @@ const getBaseUrl = () => {
   if (envApiUrl && envApiUrl.trim().length > 0) {
     return envApiUrl;
   }
-  return 'http://localhost:5001/api';
+  return 'http://localhost:7001/api';
 };
 
 export const BASE_URL = getBaseUrl();

@@ -1,7 +1,21 @@
 node_modules
 .env
 .env.*
+!.env.example
 npm-debug.log
 Dockerfile
+docker-compose*.yml
 .dockerignore
+.git
+.gitignore
+*.md
+
+# Runtime data — mounted as volumes in production, no need to bake into the image
 uploads/
+tickets/
+scratch/
+config/incremental_sync_state.json
+
+# Local debug artifacts, not needed in the image
+*_debug.json
+last_preview_req.json

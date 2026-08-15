@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${BACKEND_IMAGE:-ghcr.io/rutuja-dhayatidak/goaapp-backend:latest}
+    container_name: goaapp-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PORT=7001
+    # Bound to localhost only — Nginx on the host terminates TLS for
+    # app.goairclass.com and reverse-proxies to this port. The container
+    # is never exposed directly to the internet.
+    ports:
+      - "127.0.0.1:7001:7001"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./tickets:/app/tickets
+      - ./data/incremental_sync_state.json:/app/config/incremental_sync_state.json
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

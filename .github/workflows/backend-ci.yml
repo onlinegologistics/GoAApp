@@ -1,0 +1,43 @@
+name: Backend CI
+
+# Sanity-checks backend changes before they reach main: dependencies install cleanly,
+# the Express app loads without syntax/require errors, and the production Docker image
+# actually builds. Runs on PRs and pushes to any non-main branch that touch backend/.
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+  push:
+    branches-ignore: [main]
+    paths:
+      - "backend/**"
+
+jobs:
+  build-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Smoke-check the Express app loads
+        run: node -e "require('./app.js'); console.log('app.js loaded OK')"
+
+      - name: Validate production Docker image builds
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: false

@@ -11,6 +11,9 @@ node_modules/
 *.env
 **/.env
 **/.env.*
+# ...but keep the committed templates (no secrets in these)
+!.env.example
+!**/.env.example
 
 # OS files
 .DS_Store
