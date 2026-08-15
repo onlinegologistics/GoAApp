@@ -1,0 +1,7 @@
+# Caddyfile for app.goairclass.com
+# Caddy will automatically obtain TLS certs for the domain when DNS points to the VPS
+
+app.goairclass.com {
+    reverse_proxy app:5000
+    encode gzip
+}
