@@ -3,18 +3,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${BACKEND_IMAGE:-ghcr.io/rutuja-dhayatidak/goaapp-backend:latest}
+    image: ${BACKEND_IMAGE:-ghcr.io/onlinegologistics/goaapp-backend:latest}
     container_name: goaapp-backend
     restart: unless-stopped
     env_file:
       - .env
     environment:
       - PORT=7001
-    # Bound to localhost only — Nginx on the host terminates TLS for
-    # app.goairclass.com and reverse-proxies to this port. The container
-    # is never exposed directly to the internet.
-    ports:
-      - "127.0.0.1:7001:7001"
+    # No host port published on purpose: the shared nginx_gateway container reverse-proxies
+    # to this container by name (goaapp-backend:7001) over the goairclass_v3_app_network
+    # Docker network it's already joined to — see backend/DEPLOY.md. Nothing here is exposed
+    # directly to the internet.
+    networks:
+      - goairclass_v3_app_network
     volumes:
       - ./uploads:/app/uploads
       - ./tickets:/app/tickets
@@ -24,3 +25,10 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+networks:
+  # Pre-existing network created by the GoAirClass_V3 docker-compose stack, already shared
+  # with the nginx_gateway container. Reusing it (instead of publishing a host port) is what
+  # lets the gateway reach this container without any changes to the gateway itself.
+  goairclass_v3_app_network:
+    external: true
